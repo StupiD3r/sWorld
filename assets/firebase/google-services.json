@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "84474909213",
+    "project_id": "sworld-9807c",
+    "storage_bucket": "sworld-9807c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84474909213:android:0a756e58ed197190be6cf4",
+        "android_client_info": {
+          "package_name": "com.stupid3r.sworld"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDOo4-pAw7pYScJ5wsrOu01JjjSeT27h-4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
