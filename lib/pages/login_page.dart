@@ -103,6 +103,7 @@ class _LoginPageState extends State<LoginPage> {
 
       final String email = googleUser.email;
       final String displayName = googleUser.displayName ?? email.split('@')[0];
+      final String? photoUrl = googleUser.photoUrl;
 
       Navigator.pushAndRemoveUntil(
         context,
@@ -110,6 +111,7 @@ class _LoginPageState extends State<LoginPage> {
           builder: (context) => DashboardPage(
             username: displayName,
             email: email,
+            photoUrl: photoUrl,
           ),
         ),
         (route) => false,

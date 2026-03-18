@@ -4,11 +4,13 @@ import 'login_page.dart';
 class ProfilePage extends StatelessWidget {
   final String username;
   final String email;
+  final String? photoUrl;
 
   const ProfilePage({
     super.key,
     required this.username,
     required this.email,
+    this.photoUrl,
   });
 
   void _logout(BuildContext context) {
@@ -41,14 +43,17 @@ class ProfilePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const CircleAvatar(
+              CircleAvatar(
                 radius: 60,
-                backgroundColor: Color(0xFF5CE1E6),
-                child: Icon(
-                  Icons.person,
-                  size: 60,
-                  color: Color(0xFF0A1628),
-                ),
+                backgroundColor: const Color(0xFF5CE1E6),
+                backgroundImage: photoUrl != null ? NetworkImage(photoUrl!) : null,
+                child: photoUrl == null
+                    ? const Icon(
+                        Icons.person,
+                        size: 60,
+                        color: Color(0xFF0A1628),
+                      )
+                    : null,
               ),
               const SizedBox(height: 16),
               Text(
