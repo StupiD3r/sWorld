@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../pages/login_page.dart';
 import '../pages/profile_page.dart';
+import '../pages/activity_page.dart';
+import '../widgets/ocean_planet_sandbox.dart';
 
 class Particle {
   double x, y;
@@ -410,6 +412,12 @@ class _DashboardPageState extends State<DashboardPage>
                     title: 'Activity',
                     onTap: () {
                       Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ActivityPage(),
+                        ),
+                      );
                     },
                   ),
                   _buildDrawerItem(
@@ -438,35 +446,20 @@ class _DashboardPageState extends State<DashboardPage>
       body: SafeArea(
         child: Column(
           children: [
-            // Sandbox
+            // Ocean Planet Sandbox
             Expanded(
               flex: 3,
               child: Center(
-                child: GestureDetector(
-                  onPanUpdate: _onPanUpdate,
-                  onTapDown: _onTap,
-                  child: Container(
-                    width: sandboxRadius * 2,
-                    height: sandboxRadius * 2,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF5CE1E6).withOpacity(0.2),
-                          blurRadius: 30,
-                          spreadRadius: 5,
-                        ),
-                      ],
-                    ),
-                    child: CustomPaint(
-                      size: Size(sandboxRadius * 2, sandboxRadius * 2),
-                      painter: SandboxPainter(
-                        particles: particles,
-                        radius: sandboxRadius,
-                        wavePhase: _waveController.value * 2 * math.pi,
-                      ),
-                    ),
-                  ),
+                child: OceanPlanetSandbox(
+                  size: 280,
+                  onWindGesture: (delta) {
+                    // Handle wind gesture if needed
+                    print('Wind gesture: $delta');
+                  },
+                  onTapGesture: () {
+                    // Handle tap gesture if needed
+                    print('Ocean planet tapped');
+                  },
                 ),
               ),
             ),
@@ -494,7 +487,7 @@ class _DashboardPageState extends State<DashboardPage>
             const Padding(
               padding: EdgeInsets.only(bottom: 16.0),
               child: Text(
-                'Swipe for wind • Tap to spawn • Drag to paint',
+                'Swipe for wind effects • Tap to interact',
                 style: TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ),
