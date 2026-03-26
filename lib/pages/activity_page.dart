@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:awesome_dialog/awesome_dialog.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_page.dart';
 
 class ActivityPage extends StatefulWidget {
@@ -16,6 +18,7 @@ class _ActivityPageState extends State<ActivityPage> {
   double _distance = 0.0; // in kilometers
   double _lastAcceleration = 0.0;
   DateTime? _startTime;
+  int _totalCoins = 0;
 
   // Step detection parameters
   static const double STEP_THRESHOLD = 12.0; // Acceleration threshold for step detection
@@ -25,6 +28,19 @@ class _ActivityPageState extends State<ActivityPage> {
   void initState() {
     super.initState();
     _initializeStepCounter();
+    _loadTotalCoins();
+  }
+
+  Future<void> _loadTotalCoins() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _totalCoins = prefs.getInt('totalCoins') ?? 0;
+    });
+  }
+
+  Future<void> _saveTotalCoins() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('totalCoins', _totalCoins);
   }
 
   void _initializeStepCounter() {
@@ -88,6 +104,20 @@ class _ActivityPageState extends State<ActivityPage> {
         ? DateTime.now().difference(_startTime!).inMinutes
         : 0;
     
+    // Calculate coins earned - new formula: (steps ÷ 100) × distance
+    final coinsEarned = (_stepCount / 100).round();
+    
+    // Update total coins
+    if (coinsEarned > 0) {
+      setState(() {
+        _totalCoins += coinsEarned;
+      });
+      _saveTotalCoins();
+    }
+    
+    // Show coin reward dialog
+    _showCoinRewardDialog(coinsEarned);
+    
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -98,12 +128,21 @@ class _ActivityPageState extends State<ActivityPage> {
     );
   }
 
+  void _showCoinRewardDialog(int coinsEarned) {
+    AwesomeDialog(
+      context: context,
+      dialogType: DialogType.success,
+      animType: AnimType.scale,
+      title: '🎉 Coins Earned!',
+      desc: 'You earned $coinsEarned coins!\n\nSteps: $_stepCount\nDistance: ${_distance.toStringAsFixed(2)} km\nTotal Coins: $_totalCoins',
+      btnOkOnPress: () {},
+      btnOkText: 'Awesome!',
+      btnOkColor: const Color(0xFF5CE1E6),
+    ).show();
+  }
+
   String _formatDistance(double distance) {
-    if (distance < 1.0) {
-      return '${(distance * 1000).toStringAsFixed(0)} m';
-    } else {
-      return '${distance.toStringAsFixed(2)} km';
-    }
+    return '${distance.toStringAsFixed(2)} km';
   }
 
   @override
