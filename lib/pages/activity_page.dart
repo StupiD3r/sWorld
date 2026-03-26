@@ -1,4 +1,6 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'dashboard_page.dart';
 
 class ActivityPage extends StatefulWidget {
@@ -9,54 +11,99 @@ class ActivityPage extends StatefulWidget {
 }
 
 class _ActivityPageState extends State<ActivityPage> {
-  final List<ActivityLog> _activityLogs = [];
-  bool _isRunning = false;
+  bool _isTracking = false;
+  int _stepCount = 0;
+  double _distance = 0.0; // in kilometers
+  double _lastAcceleration = 0.0;
+  DateTime? _startTime;
 
-  void _addActivityLog(String activity) {
-    setState(() {
-      _activityLogs.insert(0, ActivityLog(
-        timestamp: DateTime.now(),
-        activity: activity,
-      ));
+  // Step detection parameters
+  static const double STEP_THRESHOLD = 12.0; // Acceleration threshold for step detection
+  static const double STEP_LENGTH = 0.000762; // Average step length in km (76.2 cm)
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeStepCounter();
+  }
+
+  void _initializeStepCounter() {
+    // Listen to accelerometer for step detection
+    accelerometerEvents.listen((AccelerometerEvent event) {
+      if (!_isTracking) return;
+      
+      // Calculate magnitude of acceleration
+      final magnitude = math.sqrt(
+        event.x * event.x + event.y * event.y + event.z * event.z
+      );
+      
+      // Detect step when acceleration crosses threshold
+      if (_lastAcceleration < STEP_THRESHOLD && magnitude >= STEP_THRESHOLD) {
+        _detectStep();
+      }
+      
+      _lastAcceleration = magnitude;
     });
   }
 
-  void _startRunning() {
-    if (_isRunning) return;
-    
+  void _detectStep() {
+    if (mounted && _isTracking) {
+      setState(() {
+        _stepCount++;
+        _distance += STEP_LENGTH;
+      });
+    }
+  }
+
+  void _toggleTracking() {
+    if (_isTracking) {
+      _stopTracking();
+    } else {
+      _startTracking();
+    }
+  }
+
+  void _startTracking() {
     setState(() {
-      _isRunning = true;
+      _isTracking = true;
+      _stepCount = 0;
+      _distance = 0.0;
+      _startTime = DateTime.now();
     });
     
-    _addActivityLog('🏃‍♂️ Started running session');
-    
-    // Simulate running activities
-    Future.delayed(const Duration(seconds: 2), () {
-      if (mounted) {
-        _addActivityLog('📊 Distance: 0.5 km');
-      }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Step tracking started!'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _stopTracking() {
+    setState(() {
+      _isTracking = false;
     });
     
-    Future.delayed(const Duration(seconds: 4), () {
-      if (mounted) {
-        _addActivityLog('💓 Heart rate: 125 bpm');
-      }
-    });
+    final duration = _startTime != null 
+        ? DateTime.now().difference(_startTime!).inMinutes
+        : 0;
     
-    Future.delayed(const Duration(seconds: 6), () {
-      if (mounted) {
-        _addActivityLog('🔥 Calories burned: 45 kcal');
-      }
-    });
-    
-    Future.delayed(const Duration(seconds: 8), () {
-      if (mounted) {
-        _addActivityLog('🏁 Running session completed');
-        setState(() {
-          _isRunning = false;
-        });
-      }
-    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Tracking stopped! $_stepCount steps, ${_distance.toStringAsFixed(2)} km in ${duration}min'
+        ),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
+  String _formatDistance(double distance) {
+    if (distance < 1.0) {
+      return '${(distance * 1000).toStringAsFixed(0)} m';
+    } else {
+      return '${distance.toStringAsFixed(2)} km';
+    }
   }
 
   @override
@@ -78,10 +125,10 @@ class _ActivityPageState extends State<ActivityPage> {
       body: SafeArea(
         child: Column(
           children: [
-            // Activity Image Placeholder
+            // Activity Stats Card
             Container(
               margin: const EdgeInsets.all(16),
-              height: 200,
+              padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -97,43 +144,115 @@ class _ActivityPageState extends State<ActivityPage> {
                   width: 1,
                 ),
               ),
-              child: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.fitness_center,
-                      size: 48,
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.directions_walk,
+                    size: 48,
+                    color: Color(0xFF5CE1E6),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Step Tracker',
+                    style: TextStyle(
                       color: Color(0xFF5CE1E6),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Activity Image',
-                      style: TextStyle(
-                        color: Color(0xFF5CE1E6),
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
+                  ),
+                  const SizedBox(height: 20),
+                  
+                  // Stats Row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          Text(
+                            '$_stepCount',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Text(
+                            'Steps',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      'Image will be placed here',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
+                      Column(
+                        children: [
+                          Text(
+                            _formatDistance(_distance),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 32,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const Text(
+                            'Distance',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  
+                  if (_isTracking && _startTime != null) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF5CE1E6).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: const Color(0xFF5CE1E6),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            'Tracking Active',
+                            style: TextStyle(
+                              color: Color(0xFF5CE1E6),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
             
-            // Let's Run Button
+            // Control Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: ElevatedButton.icon(
-                onPressed: _isRunning ? null : _startRunning,
-                icon: _isRunning
+                onPressed: _toggleTracking,
+                icon: _isTracking
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -144,148 +263,72 @@ class _ActivityPageState extends State<ActivityPage> {
                       )
                     : const Icon(Icons.directions_run, size: 20),
                 label: Text(
-                  _isRunning ? 'Running...' : "Let's run",
+                  _isTracking ? 'Stop Tracking' : "Let's run",
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5CE1E6),
+                  backgroundColor: _isTracking 
+                      ? Colors.red.withOpacity(0.8)
+                      : const Color(0xFF5CE1E6),
                   foregroundColor: const Color(0xFF0A1628),
                   minimumSize: const Size(double.infinity, 50),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  disabledBackgroundColor: const Color(0xFF5CE1E6).withOpacity(0.5),
                 ),
               ),
             ),
             
             const SizedBox(height: 16),
             
-            // Activity Logs Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.history,
-                    color: Color(0xFF5CE1E6),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'Activity Logs',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+            // Instructions
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _isTracking ? Icons.directions_walk : Icons.info_outline,
+                      size: 64,
+                      color: _isTracking 
+                          ? const Color(0xFF5CE1E6)
+                          : Colors.white24,
                     ),
-                  ),
-                  const Spacer(),
-                  if (_activityLogs.isNotEmpty)
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _activityLogs.clear();
-                        });
-                      },
-                      child: const Text(
-                        'Clear',
+                    const SizedBox(height: 16),
+                    Text(
+                      _isTracking ? 'Keep Walking!' : 'Step Tracking',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _isTracking 
+                          ? 'Your steps are being counted automatically'
+                          : 'Tap "Let\'s run" to start tracking your steps',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 14,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    if (!_isTracking) ...[
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Uses device accelerometer to detect steps',
                         style: TextStyle(
-                          color: Color(0xFF5CE1E6),
+                          color: Colors.white38,
                           fontSize: 12,
                         ),
                       ),
-                    ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 8),
-            
-            // Scrollable Activity Logs
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A2B4A).withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF5CE1E6).withOpacity(0.3),
-                    width: 1,
-                  ),
+                    ],
+                  ],
                 ),
-                child: _activityLogs.isEmpty
-                    ? const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.history,
-                              size: 48,
-                              color: Colors.white24,
-                            ),
-                            SizedBox(height: 8),
-                            Text(
-                              'No activities yet',
-                              style: TextStyle(
-                                color: Colors.white54,
-                                fontSize: 16,
-                              ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              'Tap "Let\'s run" to start',
-                              style: TextStyle(
-                                color: Colors.white38,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(8),
-                        itemCount: _activityLogs.length,
-                        itemBuilder: (context, index) {
-                          final log = _activityLogs[index];
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0A1628).withOpacity(0.6),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: const Color(0xFF5CE1E6).withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  log.activity,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _formatTimestamp(log.timestamp),
-                                  style: const TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
               ),
             ),
             
@@ -295,29 +338,4 @@ class _ActivityPageState extends State<ActivityPage> {
       ),
     );
   }
-
-  String _formatTimestamp(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-    
-    if (difference.inSeconds < 60) {
-      return '${difference.inSeconds}s ago';
-    } else if (difference.inMinutes < 60) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inHours < 24) {
-      return '${difference.inHours}h ago';
-    } else {
-      return '${difference.inDays}d ago';
-    }
-  }
-}
-
-class ActivityLog {
-  final DateTime timestamp;
-  final String activity;
-
-  ActivityLog({
-    required this.timestamp,
-    required this.activity,
-  });
 }

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../pages/login_page.dart';
 import '../pages/profile_page.dart';
 import '../pages/activity_page.dart';
-import '../widgets/ocean_planet_sandbox.dart';
+import '../pages/jungle_demo_page.dart';
+import '../widgets/jungle_platform.dart';
 
 class Particle {
   double x, y;
@@ -162,11 +163,11 @@ class _DashboardPageState extends State<DashboardPage>
   late AnimationController _physicsController;
   late AnimationController _waveController;
   List<Particle> particles = [];
-  final double gravity = 150.0;
-  final double friction = 0.99;
   final double sandboxRadius = 140.0;
-  Offset windForce = Offset.zero;
-  bool gravityEnabled = true;
+  
+  // Jungle platform state
+  String _lastPlatformAction = 'No interaction yet';
+  int _platformTapCount = 0;
 
   @override
   void initState() {
@@ -218,86 +219,38 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   void _updatePhysics() {
-    final dt = 1 / 60;
-    final bounds = Size(sandboxRadius * 2, sandboxRadius * 2);
-
-    if (windForce.distance > 0.1) {
-      for (final particle in particles) {
-        particle.applyWind(windForce.dx * 2, windForce.dy * 2);
-      }
-      windForce = windForce * 0.95;
-      if (windForce.distance < 0.1) windForce = Offset.zero;
-    }
-
-    for (final particle in particles) {
-      final g = gravityEnabled ? gravity : 0.0;
-      particle.update(dt, g, bounds, friction);
-
-      final dx = particle.x - sandboxRadius;
-      final dy = particle.y - sandboxRadius;
-      final dist = math.sqrt(dx * dx + dy * dy);
-
-      if (dist > sandboxRadius - particle.size) {
-        final angle = math.atan2(dy, dx);
-        particle.x = sandboxRadius + math.cos(angle) * (sandboxRadius - particle.size - 1);
-        particle.y = sandboxRadius + math.sin(angle) * (sandboxRadius - particle.size - 1);
-        final normalX = math.cos(angle);
-        final normalY = math.sin(angle);
-        final dot = particle.vx * normalX + particle.vy * normalY;
-        particle.vx -= 2 * dot * normalX * 0.6;
-        particle.vy -= 2 * dot * normalY * 0.6;
-      }
-    }
-    setState(() {});
+    // Physics update removed for jungle platform
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    final velocity = details.delta;
-    windForce = Offset(windForce.dx + velocity.dx * 2, windForce.dy + velocity.dy * 2);
-
-    final localPos = details.localPosition;
-    final center = Offset(sandboxRadius, sandboxRadius);
-    if ((localPos - center).distance < sandboxRadius && math.Random().nextDouble() > 0.7) {
-      particles.add(Particle(
-        x: localPos.dx,
-        y: localPos.dy,
-        vx: velocity.dx + (math.Random().nextDouble() - 0.5) * 20,
-        vy: velocity.dy + (math.Random().nextDouble() - 0.5) * 20,
-        color: const Color(0xFFE6D7B9),
-        size: 1.5 + math.Random().nextDouble(),
-      ));
-    }
+    // Pan gesture removed - handled by platform's scale gesture
   }
 
   void _onTap(TapDownDetails details) {
-    final localPos = details.localPosition;
-    final center = Offset(sandboxRadius, sandboxRadius);
-    if ((localPos - center).distance < sandboxRadius) {
-      for (int i = 0; i < 10; i++) {
-        final angle = math.Random().nextDouble() * 2 * math.pi;
-        final speed = 50 + math.Random().nextDouble() * 100;
-        particles.add(Particle(
-          x: localPos.dx,
-          y: localPos.dy,
-          vx: math.cos(angle) * speed,
-          vy: math.sin(angle) * speed,
-          color: const Color(0xFF5CE1E6).withOpacity(0.8),
-          size: 2 + math.Random().nextDouble() * 2,
-        ));
-      }
-    }
+    // Tap gesture removed - handled by platform's tap gesture
   }
 
-  void _resetSandbox() {
+  void _onPlatformTap(Offset position) {
     setState(() {
-      particles.clear();
-      _spawnParticles(50);
-      windForce = Offset.zero;
+      _platformTapCount++;
+      _lastPlatformAction = 'Tap #$_platformTapCount at (${position.dx.toStringAsFixed(1)}, ${position.dy.toStringAsFixed(1)})';
     });
   }
 
-  void _toggleGravity() {
-    setState(() => gravityEnabled = !gravityEnabled);
+  void _onPlatformLongPress() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Platform long pressed! Ready for object placement.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _resetPlatform() {
+    setState(() {
+      _platformTapCount = 0;
+      _lastPlatformAction = 'Platform reset - Ready for new interactions';
+    });
   }
 
   void _logout(BuildContext context) {
@@ -422,9 +375,15 @@ class _DashboardPageState extends State<DashboardPage>
                   ),
                   _buildDrawerItem(
                     icon: Icons.settings,
-                    title: 'Settings',
+                    title: 'Jungle Demo',
                     onTap: () {
                       Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const JungleDemoPage(),
+                        ),
+                      );
                     },
                   ),
                 ],
@@ -446,21 +405,51 @@ class _DashboardPageState extends State<DashboardPage>
       body: SafeArea(
         child: Column(
           children: [
-            // Ocean Planet Sandbox
+            // 3D Jungle Platform
             Expanded(
               flex: 3,
               child: Center(
-                child: OceanPlanetSandbox(
-                  size: 280,
-                  onWindGesture: (delta) {
-                    // Handle wind gesture if needed
-                    print('Wind gesture: $delta');
-                  },
-                  onTapGesture: () {
-                    // Handle tap gesture if needed
-                    print('Ocean planet tapped');
-                  },
+                child: JunglePlatform(
+                  width: 320,
+                  height: 70,
+                  depth: 40,
+                  onTopSurfaceTap: _onPlatformTap,
+                  onLongPress: _onPlatformLongPress,
                 ),
+              ),
+            ),
+            // Platform Interaction Info
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A2B4A).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: const Color(0xFF5CE1E6).withOpacity(0.3),
+                  width: 1,
+                ),
+              ),
+              child: Column(
+                children: [
+                  const Text(
+                    'Platform Activity',
+                    style: TextStyle(
+                      color: Color(0xFF5CE1E6),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _lastPlatformAction,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
               ),
             ),
             // Controls
@@ -470,16 +459,10 @@ class _DashboardPageState extends State<DashboardPage>
                 spacing: 10,
                 alignment: WrapAlignment.center,
                 children: [
-                  _buildToggleButton(
-                    icon: Icons.fitness_center,
-                    label: 'Gravity',
-                    isActive: gravityEnabled,
-                    onPressed: _toggleGravity,
-                  ),
                   _buildActionButton(
                     icon: Icons.refresh,
-                    label: 'Reset',
-                    onPressed: _resetSandbox,
+                    label: 'Reset Platform',
+                    onPressed: _resetPlatform,
                   ),
                 ],
               ),
@@ -487,7 +470,7 @@ class _DashboardPageState extends State<DashboardPage>
             const Padding(
               padding: EdgeInsets.only(bottom: 16.0),
               child: Text(
-                'Swipe for wind effects • Tap to interact',
+                'Swipe to rotate • Pinch to zoom • Tap to place objects',
                 style: TextStyle(color: Colors.white54, fontSize: 12),
               ),
             ),
