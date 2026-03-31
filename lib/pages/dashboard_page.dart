@@ -23,13 +23,30 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage>
-    with TickerProviderStateMixin {
+    with WidgetsBindingObserver {
+  String _lastPlatformAction = 'No interaction yet';
+  int _platformTapCount = 0;
   int _totalCoins = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadTotalCoins();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Reload coins when app comes to foreground
+      _loadTotalCoins();
+    }
   }
 
   Future<void> _loadTotalCoins() async {
@@ -37,6 +54,12 @@ class _DashboardPageState extends State<DashboardPage>
     setState(() {
       _totalCoins = prefs.getInt('totalCoins') ?? 0;
     });
+  }
+
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Reload coins when returning from activity page
+    _loadTotalCoins();
   }
 
   void _logout(BuildContext context) {
@@ -201,7 +224,10 @@ class _DashboardPageState extends State<DashboardPage>
                         MaterialPageRoute(
                           builder: (context) => const ActivityPage(),
                         ),
-                      );
+                      ).then((_) {
+                        // Reload coins immediately when returning from activity
+                        _loadTotalCoins();
+                      });
                     },
                   ),
                   _buildDrawerItem(
