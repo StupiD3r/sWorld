@@ -47,17 +47,17 @@ class _ActivityPageState extends State<ActivityPage> {
     // Listen to accelerometer for step detection
     accelerometerEvents.listen((AccelerometerEvent event) {
       if (!_isTracking) return;
-      
+
       // Calculate magnitude of acceleration
       final magnitude = math.sqrt(
-        event.x * event.x + event.y * event.y + event.z * event.z
+          event.x * event.x + event.y * event.y + event.z * event.z
       );
-      
+
       // Detect step when acceleration crosses threshold
       if (_lastAcceleration < STEP_THRESHOLD && magnitude >= STEP_THRESHOLD) {
         _detectStep();
       }
-      
+
       _lastAcceleration = magnitude;
     });
   }
@@ -86,7 +86,7 @@ class _ActivityPageState extends State<ActivityPage> {
       _distance = 0.0;
       _startTime = DateTime.now();
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Step tracking started!'),
@@ -99,14 +99,14 @@ class _ActivityPageState extends State<ActivityPage> {
     setState(() {
       _isTracking = false;
     });
-    
-    final duration = _startTime != null 
+
+    final duration = _startTime != null
         ? DateTime.now().difference(_startTime!).inMinutes
         : 0;
-    
+
     // Calculate coins earned - new formula: (steps ÷ 100) × distance
     final coinsEarned = (_stepCount / 100).round();
-    
+
     // Update total coins
     if (coinsEarned > 0) {
       setState(() {
@@ -114,14 +114,14 @@ class _ActivityPageState extends State<ActivityPage> {
       });
       _saveTotalCoins();
     }
-    
+
     // Show coin reward dialog
     _showCoinRewardDialog(coinsEarned);
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          'Tracking stopped! $_stepCount steps, ${_distance.toStringAsFixed(2)} km in ${duration}min'
+            'Tracking stopped! $_stepCount steps, ${_distance.toStringAsFixed(2)} km in ${duration}min'
         ),
         duration: const Duration(seconds: 3),
       ),
@@ -200,7 +200,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // Stats Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -245,7 +245,7 @@ class _ActivityPageState extends State<ActivityPage> {
                       ),
                     ],
                   ),
-                  
+
                   if (_isTracking && _startTime != null) ...[
                     const SizedBox(height: 20),
                     Container(
@@ -285,7 +285,7 @@ class _ActivityPageState extends State<ActivityPage> {
                 ],
               ),
             ),
-            
+
             // Control Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -293,13 +293,13 @@ class _ActivityPageState extends State<ActivityPage> {
                 onPressed: _toggleTracking,
                 icon: _isTracking
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0A1628)),
-                        ),
-                      )
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0A1628)),
+                  ),
+                )
                     : const Icon(Icons.directions_run, size: 20),
                 label: Text(
                   _isTracking ? 'Stop Tracking' : "Let's run",
@@ -309,7 +309,7 @@ class _ActivityPageState extends State<ActivityPage> {
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isTracking 
+                  backgroundColor: _isTracking
                       ? Colors.red.withOpacity(0.8)
                       : const Color(0xFF5CE1E6),
                   foregroundColor: const Color(0xFF0A1628),
@@ -320,9 +320,9 @@ class _ActivityPageState extends State<ActivityPage> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
-            
+
             // Instructions
             Expanded(
               child: Center(
@@ -332,7 +332,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     Icon(
                       _isTracking ? Icons.directions_walk : Icons.info_outline,
                       size: 64,
-                      color: _isTracking 
+                      color: _isTracking
                           ? const Color(0xFF5CE1E6)
                           : Colors.white24,
                     ),
@@ -347,7 +347,7 @@ class _ActivityPageState extends State<ActivityPage> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _isTracking 
+                      _isTracking
                           ? 'Your steps are being counted automatically'
                           : 'Tap "Let\'s run" to start tracking your steps',
                       style: const TextStyle(
@@ -370,7 +370,7 @@ class _ActivityPageState extends State<ActivityPage> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 16),
           ],
         ),
