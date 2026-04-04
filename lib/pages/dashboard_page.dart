@@ -5,6 +5,7 @@ import 'activity_page.dart';
 import 'login_page.dart';
 import 'profile_page.dart';
 import 'jungle_demo_page.dart';
+import '../widgets/jungle_platform.dart';
 
 class DashboardPage extends StatefulWidget {
   final String username;
@@ -60,6 +61,557 @@ class _DashboardPageState extends State<DashboardPage>
     super.didChangeDependencies();
     // Reload coins when returning from activity page
     _loadTotalCoins();
+  }
+
+  void _showDecorateBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.5,
+        decoration: const BoxDecoration(
+          color: Color(0xFF0A1628),
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(20),
+            topRight: Radius.circular(20),
+          ),
+          border: Border(
+            top: BorderSide(color: Color(0xFF5CE1E6), width: 1),
+          ),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF5CE1E6),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Header
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.design_services,
+                    color: Color(0xFF5CE1E6),
+                    size: 24,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Decorate Platform',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const Divider(
+              color: Color(0xFF5CE1E6),
+              height: 1,
+              indent: 20,
+              endIndent: 20,
+            ),
+            
+            const SizedBox(height: 20),
+            
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Customize your jungle platform with decorations!',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 30),
+                    
+                    // Decoration options (placeholder for future features)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildDecorationOption(
+                          icon: Icons.nature,
+                          label: 'Plants',
+                          onTap: _showPlantsDialog,
+                        ),
+                        _buildDecorationOption(
+                          icon: Icons.pets,
+                          label: 'Animals',
+                          onTap: _showAnimalsDialog,
+                        ),
+                        _buildDecorationOption(
+                          icon: Icons.terrain,
+                          label: 'Terrain',
+                          onTap: _showTerrainDialog,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Close button
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5CE1E6),
+                    foregroundColor: const Color(0xFF0A1628),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text(
+                    'Close',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDecorationOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1A2B4A).withOpacity(0.3),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF5CE1E6).withOpacity(0.5),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              color: const Color(0xFF5CE1E6),
+              size: 32,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPlantsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.nature,
+              color: Color(0xFF5CE1E6),
+              size: 24,
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Select Plants',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Choose plants to add above your platform:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Tree options
+              GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemCount: 6,
+                itemBuilder: (context, index) {
+                  final treeNames = [
+                    'Oak Tree',
+                    'Pine Tree', 
+                    'Palm Tree',
+                    'Willow Tree',
+                    'Bamboo',
+                    'Cherry Tree'
+                  ];
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${treeNames[index]} selected (coming soon!)'),
+                          backgroundColor: const Color(0xFF5CE1E6),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF1A2B4A).withOpacity(0.8),
+                            const Color(0xFF1A2B4A).withOpacity(0.4),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF5CE1E6).withOpacity(0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.park,
+                            color: const Color(0xFF5CE1E6),
+                            size: 32,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            treeNames[index],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: Color(0xFF5CE1E6),
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAnimalsDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.pets,
+              color: Color(0xFF5CE1E6),
+              size: 24,
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Select Animals',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Choose animals to add to your platform:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Animal options
+              GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemCount: 6,
+                itemBuilder: (context, index) {
+                  final animalNames = [
+                    'Monkey',
+                    'Parrot', 
+                    'Tiger',
+                    'Elephant',
+                    'Snake',
+                    'Butterfly'
+                  ];
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${animalNames[index]} selected (coming soon!)'),
+                          backgroundColor: const Color(0xFF5CE1E6),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF1A2B4A).withOpacity(0.8),
+                            const Color(0xFF1A2B4A).withOpacity(0.4),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF5CE1E6).withOpacity(0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.cruelty_free,
+                            color: const Color(0xFF5CE1E6),
+                            size: 32,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            animalNames[index],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: Color(0xFF5CE1E6),
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTerrainDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.terrain,
+              color: Color(0xFF5CE1E6),
+              size: 24,
+            ),
+            SizedBox(width: 12),
+            Text(
+              'Select Terrain',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Choose terrain features for your platform:',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Terrain options
+              GridView.builder(
+                shrinkWrap: true,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                itemCount: 6,
+                itemBuilder: (context, index) {
+                  final terrainNames = [
+                    'Rocks',
+                    'River', 
+                    'Mountain',
+                    'Waterfall',
+                    'Cave',
+                    'Bridge'
+                  ];
+                  
+                  return GestureDetector(
+                    onTap: () {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('${terrainNames[index]} selected (coming soon!)'),
+                          backgroundColor: const Color(0xFF5CE1E6),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFF1A2B4A).withOpacity(0.8),
+                            const Color(0xFF1A2B4A).withOpacity(0.4),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF5CE1E6).withOpacity(0.5),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.landscape,
+                            color: const Color(0xFF5CE1E6),
+                            size: 32,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            terrainNames[index],
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'Close',
+              style: TextStyle(
+                color: Color(0xFF5CE1E6),
+                fontSize: 16,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _logout(BuildContext context) {
@@ -230,19 +782,6 @@ class _DashboardPageState extends State<DashboardPage>
                       });
                     },
                   ),
-                  _buildDrawerItem(
-                    icon: Icons.settings,
-                    title: 'Jungle Demo',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const JungleDemoPage(),
-                        ),
-                      );
-                    },
-                  ),
                 ],
               ),
             ),
@@ -272,6 +811,32 @@ class _DashboardPageState extends State<DashboardPage>
                     aspectRatio: 2.0,
                     child: CustomPaint(
                       painter: _IsometricPlatformPainter(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Decorate Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Center(
+                child: ElevatedButton.icon(
+                  onPressed: _showDecorateBottomSheet,
+                  icon: const Icon(Icons.design_services, size: 20),
+                  label: const Text(
+                    'Decorate',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5CE1E6),
+                    foregroundColor: const Color(0xFF0A1628),
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),

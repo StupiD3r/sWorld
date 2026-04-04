@@ -47,17 +47,17 @@ class _ActivityPageState extends State<ActivityPage> {
     // Listen to accelerometer for step detection
     accelerometerEvents.listen((AccelerometerEvent event) {
       if (!_isTracking) return;
-
+      
       // Calculate magnitude of acceleration
       final magnitude = math.sqrt(
-          event.x * event.x + event.y * event.y + event.z * event.z
+        event.x * event.x + event.y * event.y + event.z * event.z
       );
-
+      
       // Detect step when acceleration crosses threshold
       if (_lastAcceleration < STEP_THRESHOLD && magnitude >= STEP_THRESHOLD) {
         _detectStep();
       }
-
+      
       _lastAcceleration = magnitude;
     });
   }
