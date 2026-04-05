@@ -500,10 +500,11 @@ class _DashboardPageState extends State<DashboardPage>
                       context,
                       MaterialPageRoute(
                           builder: (context) => CommunityPage(
-                            username: widget.username,
-                            isAdmin: widget.isAdmin,
-                          )),
-                    );
+                                username: widget.username,
+                                isAdmin: widget.isAdmin,
+                                photoUrl: widget.photoUrl,
+                              )),
+                    ).then((_) => _loadTotalCoins());
                   },
                 ),
               ],

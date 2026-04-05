@@ -7,6 +7,7 @@ class ChatMessage {
   final String message;
   final DateTime timestamp;
   final bool isAdmin;
+  final String? photoUrl;
 
   ChatMessage({
     required this.id,
@@ -14,6 +15,7 @@ class ChatMessage {
     required this.message,
     required this.timestamp,
     required this.isAdmin,
+    this.photoUrl,
   });
 
   factory ChatMessage.fromFirestore(DocumentSnapshot doc) {
@@ -24,6 +26,7 @@ class ChatMessage {
       message: data['message'] ?? '',
       timestamp: (data['timestamp'] as Timestamp).toDate(),
       isAdmin: data['isAdmin'] ?? false,
+      photoUrl: data['photoUrl'],
     );
   }
 
@@ -33,6 +36,7 @@ class ChatMessage {
       'message': message,
       'timestamp': Timestamp.fromDate(timestamp),
       'isAdmin': isAdmin,
+      'photoUrl': photoUrl,
     };
   }
 }
@@ -50,6 +54,7 @@ class ChatService {
     required String username,
     required String message,
     bool isAdmin = false,
+    String? photoUrl,
   }) async {
     try {
       final chatMessage = ChatMessage(
@@ -58,6 +63,7 @@ class ChatService {
         message: message,
         timestamp: DateTime.now(),
         isAdmin: isAdmin,
+        photoUrl: photoUrl,
       );
 
       await _messagesCollection.add(chatMessage.toFirestore());

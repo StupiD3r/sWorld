@@ -6,11 +6,13 @@ import '../services/chat_service.dart';
 class CommunityPage extends StatefulWidget {
   final String username;
   final bool isAdmin;
+  final String? photoUrl;
 
   const CommunityPage({
     super.key,
     required this.username,
     this.isAdmin = false,
+    this.photoUrl,
   });
 
   @override
@@ -95,6 +97,7 @@ class _CommunityPageState extends State<CommunityPage> {
         username: widget.username,
         message: messageText,
         isAdmin: widget.isAdmin,
+        photoUrl: widget.photoUrl,
       );
       
       // Message will appear automatically through the stream listener
@@ -246,67 +249,94 @@ class _CommunityPageState extends State<CommunityPage> {
   Widget _buildMessageBubble(ChatMessage message) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: message.isAdmin
-                      ? Colors.red.withOpacity(0.8)
-                      : const Color(0xFF5CE1E6).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+          // Profile Picture
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: const Color(0xFF5CE1E6),
+            backgroundImage: message.photoUrl != null ? NetworkImage(message.photoUrl!) : null,
+            child: message.photoUrl == null
+                ? Text(
+                    message.username.isNotEmpty ? message.username[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      color: Color(0xFF0A1628),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          // Message Content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Username and Timestamp Row
+                Row(
                   children: [
-                    if (message.isAdmin) ...[
-                      const Icon(Icons.admin_panel_settings, color: Colors.white, size: 12),
-                      const SizedBox(width: 4),
-                    ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: message.isAdmin
+                            ? Colors.red.withOpacity(0.8)
+                            : const Color(0xFF5CE1E6).withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (message.isAdmin) ...[
+                            const Icon(Icons.admin_panel_settings, color: Colors.white, size: 12),
+                            const SizedBox(width: 4),
+                          ],
+                          Text(
+                            message.username,
+                            style: TextStyle(
+                              color: message.isAdmin ? Colors.white : const Color(0xFF5CE1E6),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Text(
-                      message.username,
+                      _formatTimestamp(message.timestamp),
                       style: TextStyle(
-                        color: message.isAdmin ? Colors.white : const Color(0xFF5CE1E6),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 10,
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _formatTimestamp(message.timestamp),
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 10,
+                const SizedBox(height: 4),
+                // Message Bubble
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: message.isAdmin
+                        ? Colors.red.withOpacity(0.1)
+                        : const Color(0xFF5CE1E6).withOpacity(0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: message.isAdmin
+                          ? Colors.red.withOpacity(0.3)
+                          : const Color(0xFF5CE1E6).withOpacity(0.2),
+                    ),
+                  ),
+                  child: Text(
+                    message.message,
+                    style: TextStyle(
+                      color: message.isAdmin ? Colors.red.withOpacity(0.9) : Colors.white,
+                      fontSize: 14,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: message.isAdmin
-                  ? Colors.red.withOpacity(0.1)
-                  : const Color(0xFF5CE1E6).withOpacity(0.05),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: message.isAdmin
-                    ? Colors.red.withOpacity(0.3)
-                    : const Color(0xFF5CE1E6).withOpacity(0.2),
-              ),
-            ),
-            child: Text(
-              message.message,
-              style: TextStyle(
-                color: message.isAdmin ? Colors.red.withOpacity(0.9) : Colors.white,
-                fontSize: 14,
-              ),
+              ],
             ),
           ),
         ],
