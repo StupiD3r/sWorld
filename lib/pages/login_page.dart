@@ -66,6 +66,23 @@ class _LoginPageState extends State<LoginPage> {
       final emailOrUsername = _emailOrUsernameController.text.trim();
       final password = _passwordController.text;
 
+      // Check for admin credentials
+      if (emailOrUsername == 'admin' && password == 'admin123') {
+        // Create admin session with 10,000 coins
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DashboardPage(
+              username: 'admin',
+              email: 'admin@sworld.com',
+              isAdmin: true,
+            ),
+          ),
+          (route) => false,
+        );
+        return;
+      }
+
       final users = await _dbHelper.validateLogin(emailOrUsername, password);
 
       if (users.isNotEmpty) {
@@ -76,15 +93,16 @@ class _LoginPageState extends State<LoginPage> {
             builder: (context) => DashboardPage(
               username: user['username'] as String,
               email: user['email'] as String,
+              isAdmin: false,
             ),
           ),
           (route) => false,
         );
       } else {
-        _showErrorDialog('Invalid email/username or password. Please try again.');
+        _showErrorDialog('Invalid email/username or password');
       }
     } catch (e) {
-      _showErrorDialog('An error occurred. Please try again later.');
+      _showErrorDialog('An error occurred during login. Please try again.');
     } finally {
       setState(() => _isLoading = false);
     }

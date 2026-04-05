@@ -64,6 +64,18 @@ extension CubeDecorationLabel on CubeDecoration {
       case CubeDecoration.horse:    return Icons.directions_run;
     }
   }
+
+  int get price {
+    switch (this) {
+      case CubeDecoration.none:     return 0;
+      case CubeDecoration.oakTree:  return 199;
+      case CubeDecoration.palmTree: return 299;
+      case CubeDecoration.pineTree: return 449;
+      case CubeDecoration.bird:    return 999;
+      case CubeDecoration.pig:     return 199;
+      case CubeDecoration.horse:   return 499;
+    }
+  }
 }
 
 // ─── Slot model ───────────────────────────────────────────────────────────────
@@ -86,12 +98,14 @@ class DashboardPage extends StatefulWidget {
   final String username;
   final String email;
   final String? photoUrl;
+  final bool isAdmin;
 
   const DashboardPage({
     super.key,
     required this.username,
     required this.email,
     this.photoUrl,
+    this.isAdmin = false,
   });
 
   @override
@@ -138,8 +152,19 @@ class _DashboardPageState extends State<DashboardPage>
   }
 
   Future<void> _loadTotalCoins() async {
+    if (widget.isAdmin) {
+      // Admin gets 10,000 coins
+      setState(() => _totalCoins = 10000);
+      await _saveTotalCoins(); // Save admin coins
+    } else {
+      final prefs = await SharedPreferences.getInstance();
+      setState(() => _totalCoins = prefs.getInt('totalCoins') ?? 0);
+    }
+  }
+
+  Future<void> _saveTotalCoins() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _totalCoins = prefs.getInt('totalCoins') ?? 0);
+    await prefs.setInt('totalCoins', _totalCoins);
   }
 
   void _showDecorateBottomSheet() {
@@ -151,12 +176,17 @@ class _DashboardPageState extends State<DashboardPage>
         slots: _slots,
         cols: _cols,
         rows: _rows,
+        userCoins: _totalCoins,
         onPlace: (col, row, dec) {
-          setState(() {
-            _slots
-                .firstWhere((s) => s.col == col && s.row == row)
-                .decoration = dec;
-          });
+          if (dec.price <= _totalCoins) {
+            setState(() {
+              _slots
+                  .firstWhere((s) => s.col == col && s.row == row)
+                  .decoration = dec;
+              _totalCoins -= dec.price;
+              _saveTotalCoins();
+            });
+          }
         },
       ),
     );
@@ -353,11 +383,32 @@ class _DashboardPageState extends State<DashboardPage>
                       : null,
                 ),
                 const SizedBox(height: 16),
-                Text(widget.username,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(widget.username,
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                    if (widget.isAdmin) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text('ADMIN',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ],
+                ),
                 const SizedBox(height: 4),
                 Text(widget.email,
                     style: const TextStyle(
@@ -1000,12 +1051,14 @@ class _DecorateSheet extends StatefulWidget {
   final List<PlatformSlot> slots;
   final int cols;
   final int rows;
+  final int userCoins;
   final void Function(int col, int row, CubeDecoration dec) onPlace;
 
   const _DecorateSheet({
     required this.slots,
     required this.cols,
     required this.rows,
+    required this.userCoins,
     required this.onPlace,
   });
 
@@ -1198,9 +1251,10 @@ class _DecorateSheetState extends State<_DecorateSheet> {
           Row(
             children: items.map((dec) {
               final selected = _selectedDec == dec;
+              final canAfford = dec.price <= widget.userCoins;
               return Expanded(
                 child: GestureDetector(
-                  onTap: () => setState(() => _selectedDec = dec),
+                  onTap: canAfford ? () => setState(() => _selectedDec = dec) : null,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     margin: const EdgeInsets.only(right: 10),
@@ -1209,26 +1263,44 @@ class _DecorateSheetState extends State<_DecorateSheet> {
                     decoration: BoxDecoration(
                       color: selected
                           ? const Color(0xFF5CE1E6).withOpacity(0.15)
-                          : const Color(0xFF1A2B4A).withOpacity(0.4),
+                          : canAfford
+                          ? const Color(0xFF1A2B4A).withOpacity(0.4)
+                          : const Color(0xFF1A2B4A).withOpacity(0.2),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: selected
                             ? const Color(0xFF5CE1E6)
-                            : const Color(0xFF5CE1E6).withOpacity(0.3),
+                            : canAfford
+                            ? const Color(0xFF5CE1E6).withOpacity(0.3)
+                            : Colors.white24,
                         width: selected ? 2 : 1,
                       ),
                     ),
                     child: Column(children: [
                       Icon(dec.icon,
-                          color: const Color(0xFF5CE1E6), size: 28),
+                          color: canAfford
+                              ? const Color(0xFF5CE1E6)
+                              : Colors.white24,
+                          size: 28),
                       const SizedBox(height: 8),
                       Text(dec.label,
                           style: TextStyle(
-                              color: selected
-                                  ? const Color(0xFF5CE1E6)
-                                  : Colors.white,
+                              color: canAfford
+                                  ? selected
+                                      ? const Color(0xFF5CE1E6)
+                                      : Colors.white
+                                  : Colors.white24,
                               fontSize: 11,
                               fontWeight: FontWeight.w500),
+                          textAlign: TextAlign.center),
+                      const SizedBox(height: 4),
+                      Text('${dec.price} coins',
+                          style: TextStyle(
+                              color: canAfford
+                                  ? const Color(0xFF5CE1E6)
+                                  : Colors.red.withOpacity(0.6),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600),
                           textAlign: TextAlign.center),
                     ]),
                   ),
@@ -1266,16 +1338,25 @@ class _DecorateSheetState extends State<_DecorateSheet> {
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
-                      onPressed: () {
-                        // Place bird in slot 0_0 as a marker
-                        widget.onPlace(0, 0, CubeDecoration.bird);
-                        Navigator.pop(context);
-                      },
+                      onPressed: CubeDecoration.bird.price <= widget.userCoins
+                          ? () {
+                              widget.onPlace(0, 0, CubeDecoration.bird);
+                              Navigator.pop(context);
+                            }
+                          : null,
                       icon: const Icon(Icons.flight, size: 18),
-                      label: const Text('Release birds!'),
+                      label: Text(
+                        CubeDecoration.bird.price <= widget.userCoins
+                            ? 'Release birds!'
+                            : 'Need ${CubeDecoration.bird.price} coins',
+                      ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF5CE1E6),
-                        foregroundColor: const Color(0xFF0A1628),
+                        backgroundColor: CubeDecoration.bird.price <= widget.userCoins
+                            ? const Color(0xFF5CE1E6)
+                            : Colors.grey,
+                        foregroundColor: CubeDecoration.bird.price <= widget.userCoins
+                            ? const Color(0xFF0A1628)
+                            : Colors.white54,
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10)),
                       ),
@@ -1285,18 +1366,45 @@ class _DecorateSheetState extends State<_DecorateSheet> {
               ),
             ),
           ] else if (_selectedDec != null) ...[
-            // Land animals: pick a slot
-            Text('Step 2 — Choose a slot',
-                style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500)),
-            const SizedBox(height: 4),
-            Text(
-              'Row 1 = front of platform  ·  Row ${widget.rows} = back',
-              style: const TextStyle(color: Colors.white30, fontSize: 11),
-            ),
-            const SizedBox(height: 12),
+            // Check affordability first
+            if (_selectedDec!.price > widget.userCoins)
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.red.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.error_outline, color: Colors.red, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Insufficient coins! You need ${_selectedDec!.price} coins but only have ${widget.userCoins}.',
+                        style: const TextStyle(
+                          color: Colors.red,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              // Land animals: pick a slot
+              Text('Step 2 — Choose a slot',
+                  style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500)),
+              const SizedBox(height: 4),
+              Text(
+                'Row 1 = front of platform  ·  Row ${widget.rows} = back',
+                style: const TextStyle(color: Colors.white30, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
 
             for (int r = widget.rows - 1; r >= 0; r--) ...[
               Row(
@@ -1365,6 +1473,7 @@ class _DecorateSheetState extends State<_DecorateSheet> {
                 ],
               ),
               const SizedBox(height: 8),
+            ],
             ],
           ],
 
