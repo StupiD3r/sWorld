@@ -4,8 +4,46 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'activity_page.dart';
 import 'login_page.dart';
 import 'profile_page.dart';
-import 'jungle_demo_page.dart';
-import '../widgets/jungle_platform.dart';
+
+// ─── Decoration types ─────────────────────────────────────────────────────────
+
+enum CubeDecoration { none, oakTree, palmTree, pineTree }
+
+extension CubeDecorationLabel on CubeDecoration {
+  String get label {
+    switch (this) {
+      case CubeDecoration.none:     return 'Empty';
+      case CubeDecoration.oakTree:  return 'Oak Tree';
+      case CubeDecoration.palmTree: return 'Palm Tree';
+      case CubeDecoration.pineTree: return 'Pine Tree';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case CubeDecoration.none:     return Icons.crop_square;
+      case CubeDecoration.oakTree:  return Icons.park;
+      case CubeDecoration.palmTree: return Icons.nature;
+      case CubeDecoration.pineTree: return Icons.forest;
+    }
+  }
+}
+
+// ─── Slot model ───────────────────────────────────────────────────────────────
+
+class PlatformSlot {
+  final int col; // 0 = left, cols-1 = right
+  final int row; // 0 = front, rows-1 = back
+  CubeDecoration decoration;
+
+  PlatformSlot({
+    required this.col,
+    required this.row,
+    this.decoration = CubeDecoration.none,
+  });
+}
+
+// ─── Dashboard page ───────────────────────────────────────────────────────────
 
 class DashboardPage extends StatefulWidget {
   final String username;
@@ -25,15 +63,28 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {
-  String _lastPlatformAction = 'No interaction yet';
-  int _platformTapCount = 0;
   int _totalCoins = 0;
+
+  // Grid dimensions — change these to add more slots
+  static const int _cols = 5;
+  static const int _rows = 2;
+
+  late List<PlatformSlot> _slots;
+
+  // Populated after each paint — maps "col_row" → screen-space Offset of
+  // that slot's centre on the platform top face
+  Map<String, Offset> _slotCenters = {};
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadTotalCoins();
+    _slots = [
+      for (int r = 0; r < _rows; r++)
+        for (int c = 0; c < _cols; c++)
+          PlatformSlot(col: c, row: r),
+    ];
   }
 
   @override
@@ -44,23 +95,18 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Reload coins when app comes to foreground
-      _loadTotalCoins();
-    }
+    if (state == AppLifecycleState.resumed) _loadTotalCoins();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadTotalCoins();
   }
 
   Future<void> _loadTotalCoins() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _totalCoins = prefs.getInt('totalCoins') ?? 0;
-    });
-  }
-
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Reload coins when returning from activity page
-    _loadTotalCoins();
+    setState(() => _totalCoins = prefs.getInt('totalCoins') ?? 0);
   }
 
   void _showDecorateBottomSheet() {
@@ -68,548 +114,17 @@ class _DashboardPageState extends State<DashboardPage>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.5,
-        decoration: const BoxDecoration(
-          color: Color(0xFF0A1628),
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-          border: Border(
-            top: BorderSide(color: Color(0xFF5CE1E6), width: 1),
-          ),
-        ),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: const Color(0xFF5CE1E6),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            
-            // Header
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.design_services,
-                    color: Color(0xFF5CE1E6),
-                    size: 24,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Decorate Platform',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            const Divider(
-              color: Color(0xFF5CE1E6),
-              height: 1,
-              indent: 20,
-              endIndent: 20,
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Customize your jungle platform with decorations!',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 30),
-                    
-                    // Decoration options (placeholder for future features)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildDecorationOption(
-                          icon: Icons.nature,
-                          label: 'Plants',
-                          onTap: _showPlantsDialog,
-                        ),
-                        _buildDecorationOption(
-                          icon: Icons.pets,
-                          label: 'Animals',
-                          onTap: _showAnimalsDialog,
-                        ),
-                        _buildDecorationOption(
-                          icon: Icons.terrain,
-                          label: 'Terrain',
-                          onTap: _showTerrainDialog,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            
-            // Close button
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5CE1E6),
-                    foregroundColor: const Color(0xFF0A1628),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Close',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDecorationOption({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A2B4A).withOpacity(0.3),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: const Color(0xFF5CE1E6).withOpacity(0.5),
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: const Color(0xFF5CE1E6),
-              size: 32,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showPlantsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1628),
-        title: const Row(
-          children: [
-            Icon(
-              Icons.nature,
-              color: Color(0xFF5CE1E6),
-              size: 24,
-            ),
-            SizedBox(width: 12),
-            Text(
-              'Select Plants',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Choose plants to add above your platform:',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Tree options
-              GridView.builder(
-                shrinkWrap: true,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.0,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: 6,
-                itemBuilder: (context, index) {
-                  final treeNames = [
-                    'Oak Tree',
-                    'Pine Tree', 
-                    'Palm Tree',
-                    'Willow Tree',
-                    'Bamboo',
-                    'Cherry Tree'
-                  ];
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${treeNames[index]} selected (coming soon!)'),
-                          backgroundColor: const Color(0xFF5CE1E6),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF1A2B4A).withOpacity(0.8),
-                            const Color(0xFF1A2B4A).withOpacity(0.4),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF5CE1E6).withOpacity(0.5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.park,
-                            color: const Color(0xFF5CE1E6),
-                            size: 32,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            treeNames[index],
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Close',
-              style: TextStyle(
-                color: Color(0xFF5CE1E6),
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAnimalsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1628),
-        title: const Row(
-          children: [
-            Icon(
-              Icons.pets,
-              color: Color(0xFF5CE1E6),
-              size: 24,
-            ),
-            SizedBox(width: 12),
-            Text(
-              'Select Animals',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Choose animals to add to your platform:',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Animal options
-              GridView.builder(
-                shrinkWrap: true,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.0,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: 6,
-                itemBuilder: (context, index) {
-                  final animalNames = [
-                    'Monkey',
-                    'Parrot', 
-                    'Tiger',
-                    'Elephant',
-                    'Snake',
-                    'Butterfly'
-                  ];
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${animalNames[index]} selected (coming soon!)'),
-                          backgroundColor: const Color(0xFF5CE1E6),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF1A2B4A).withOpacity(0.8),
-                            const Color(0xFF1A2B4A).withOpacity(0.4),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF5CE1E6).withOpacity(0.5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.cruelty_free,
-                            color: const Color(0xFF5CE1E6),
-                            size: 32,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            animalNames[index],
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Close',
-              style: TextStyle(
-                color: Color(0xFF5CE1E6),
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTerrainDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1628),
-        title: const Row(
-          children: [
-            Icon(
-              Icons.terrain,
-              color: Color(0xFF5CE1E6),
-              size: 24,
-            ),
-            SizedBox(width: 12),
-            Text(
-              'Select Terrain',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Choose terrain features for your platform:',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Terrain options
-              GridView.builder(
-                shrinkWrap: true,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 1.0,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: 6,
-                itemBuilder: (context, index) {
-                  final terrainNames = [
-                    'Rocks',
-                    'River', 
-                    'Mountain',
-                    'Waterfall',
-                    'Cave',
-                    'Bridge'
-                  ];
-                  
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${terrainNames[index]} selected (coming soon!)'),
-                          backgroundColor: const Color(0xFF5CE1E6),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            const Color(0xFF1A2B4A).withOpacity(0.8),
-                            const Color(0xFF1A2B4A).withOpacity(0.4),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0xFF5CE1E6).withOpacity(0.5),
-                          width: 1,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.landscape,
-                            color: const Color(0xFF5CE1E6),
-                            size: 32,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            terrainNames[index],
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Close',
-              style: TextStyle(
-                color: Color(0xFF5CE1E6),
-                fontSize: 16,
-              ),
-            ),
-          ),
-        ],
+      builder: (context) => _DecorateSheet(
+        slots: _slots,
+        cols: _cols,
+        rows: _rows,
+        onPlace: (col, row, dec) {
+          setState(() {
+            _slots
+                .firstWhere((s) => s.col == col && s.row == row)
+                .decoration = dec;
+          });
+        },
       ),
     );
   }
@@ -629,10 +144,7 @@ class _DashboardPageState extends State<DashboardPage>
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Image.asset(
-          'assets/images/sWorld_Logo.png',
-          height: 40,
-        ),
+        title: Image.asset('assets/images/sWorld_Logo.png', height: 40),
         actions: [
           Builder(
             builder: (context) => IconButton(
@@ -642,166 +154,11 @@ class _DashboardPageState extends State<DashboardPage>
           ),
         ],
       ),
-      endDrawer: Drawer(
-        backgroundColor: const Color(0xFF0A1628),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF1A2B4A), Color(0xFF0A1628)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                border: Border(
-                  bottom: BorderSide(color: Color(0xFF5CE1E6), width: 1),
-                ),
-              ),
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundColor: const Color(0xFF5CE1E6),
-                    backgroundImage: widget.photoUrl != null
-                        ? NetworkImage(widget.photoUrl!)
-                        : null,
-                    child: widget.photoUrl == null
-                        ? const Icon(
-                      Icons.person,
-                      size: 50,
-                      color: Color(0xFF0A1628),
-                    )
-                        : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    widget.username,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.email,
-                    style: const TextStyle(
-                      color: Color(0xFF5CE1E6),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF5CE1E6).withOpacity(0.2),
-                          const Color(0xFF5CE1E6).withOpacity(0.1),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF5CE1E6),
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.monetization_on,
-                          color: Color(0xFF5CE1E6),
-                          size: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '$_totalCoins',
-                          style: const TextStyle(
-                            color: Color(0xFF5CE1E6),
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'coins',
-                          style: TextStyle(
-                            color: Color(0xFF5CE1E6),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _buildDrawerItem(
-                    icon: Icons.dashboard,
-                    title: 'Dashboard',
-                    isActive: true,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.person,
-                    title: 'Profile',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ProfilePage(
-                            username: widget.username,
-                            email: widget.email,
-                            photoUrl: widget.photoUrl,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildDrawerItem(
-                    icon: Icons.local_activity,
-                    title: 'Activity',
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ActivityPage(),
-                        ),
-                      ).then((_) {
-                        // Reload coins immediately when returning from activity
-                        _loadTotalCoins();
-                      });
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const Divider(color: Color(0xFF5CE1E6), height: 1),
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.redAccent),
-              title: const Text(
-                'Logout',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-              onTap: () => _logout(context),
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
+      endDrawer: _buildDrawer(),
       body: SafeArea(
         child: Column(
           children: [
-            // Static Isometric Jungle Platform
+            // ── Platform + decorations ────────────────────────────────────
             Expanded(
               flex: 3,
               child: Center(
@@ -809,15 +166,70 @@ class _DashboardPageState extends State<DashboardPage>
                   padding: const EdgeInsets.symmetric(horizontal: 24.0),
                   child: AspectRatio(
                     aspectRatio: 2.0,
-                    child: CustomPaint(
-                      painter: _IsometricPlatformPainter(),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final w = constraints.maxWidth;
+                        final h = constraints.maxHeight;
+                        return Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            // Original platform — visually untouched
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _IsometricPlatformPainter(
+                                  cols: _cols,
+                                  rows: _rows,
+                                  onSlotCenters: (centers) {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (mounted) {
+                                        setState(
+                                                () => _slotCenters = centers);
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+
+                            // Decoration widgets — one per occupied slot
+                            ..._slots
+                                .where((s) =>
+                            s.decoration != CubeDecoration.none)
+                                .map((slot) {
+                              final key = '${slot.col}_${slot.row}';
+                              final center = _slotCenters[key];
+                              if (center == null) {
+                                return const SizedBox.shrink();
+                              }
+
+                              // Scale tree size to slot width so they fit neatly
+                              final treeH = h * 0.55;
+                              final treeW = w / _cols * 0.85;
+
+                              return Positioned(
+                                left: center.dx - treeW / 2,
+                                top:  center.dy - treeH,
+                                child: SizedBox(
+                                  width: treeW,
+                                  height: treeH,
+                                  child: CustomPaint(
+                                    painter: _DecorationPainter(
+                                        type: slot.decoration),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
             ),
 
-            // Decorate Button
+            // ── Decorate button ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Center(
@@ -827,24 +239,22 @@ class _DashboardPageState extends State<DashboardPage>
                   label: const Text(
                     'Decorate',
                     style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5CE1E6),
                     foregroundColor: const Color(0xFF0A1628),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 24, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                        borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
             ),
 
             const Padding(
-              padding: EdgeInsets.only(bottom: 24.0),
+              padding: EdgeInsets.only(bottom: 24.0, top: 8),
               child: Text(
                 'Your jungle world awaits!',
                 style: TextStyle(color: Colors.white54, fontSize: 13),
@@ -856,6 +266,136 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
+  // ── Drawer ────────────────────────────────────────────────────────────────
+
+  Widget _buildDrawer() {
+    return Drawer(
+      backgroundColor: const Color(0xFF0A1628),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF1A2B4A), Color(0xFF0A1628)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border(
+                  bottom: BorderSide(color: Color(0xFF5CE1E6), width: 1)),
+            ),
+            child: Column(
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: const Color(0xFF5CE1E6),
+                  backgroundImage: widget.photoUrl != null
+                      ? NetworkImage(widget.photoUrl!)
+                      : null,
+                  child: widget.photoUrl == null
+                      ? const Icon(Icons.person,
+                      size: 50, color: Color(0xFF0A1628))
+                      : null,
+                ),
+                const SizedBox(height: 16),
+                Text(widget.username,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text(widget.email,
+                    style: const TextStyle(
+                        color: Color(0xFF5CE1E6), fontSize: 14)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      const Color(0xFF5CE1E6).withOpacity(0.2),
+                      const Color(0xFF5CE1E6).withOpacity(0.1),
+                    ]),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: const Color(0xFF5CE1E6), width: 1),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.monetization_on,
+                          color: Color(0xFF5CE1E6), size: 20),
+                      const SizedBox(width: 8),
+                      Text('$_totalCoins',
+                          style: const TextStyle(
+                              color: Color(0xFF5CE1E6),
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold)),
+                      const SizedBox(width: 4),
+                      const Text('coins',
+                          style: TextStyle(
+                              color: Color(0xFF5CE1E6), fontSize: 14)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                _buildDrawerItem(
+                  icon: Icons.dashboard,
+                  title: 'Dashboard',
+                  isActive: true,
+                  onTap: () => Navigator.pop(context),
+                ),
+                _buildDrawerItem(
+                  icon: Icons.person,
+                  title: 'Profile',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProfilePage(
+                          username: widget.username,
+                          email: widget.email,
+                          photoUrl: widget.photoUrl,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.local_activity,
+                  title: 'Activity',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const ActivityPage()),
+                    ).then((_) => _loadTotalCoins());
+                  },
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Color(0xFF5CE1E6), height: 1),
+          ListTile(
+            leading: const Icon(Icons.logout, color: Colors.redAccent),
+            title: const Text('Logout',
+                style: TextStyle(color: Colors.redAccent)),
+            onTap: () => _logout(context),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
   Widget _buildDrawerItem({
     required IconData icon,
     required String title,
@@ -863,55 +403,324 @@ class _DashboardPageState extends State<DashboardPage>
     bool isActive = false,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        color: isActive ? const Color(0xFF5CE1E6) : Colors.white70,
-      ),
-      title: Text(
-        title,
-        style: TextStyle(
-          color: isActive ? const Color(0xFF5CE1E6) : Colors.white,
-          fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
-        ),
-      ),
+      leading: Icon(icon,
+          color: isActive ? const Color(0xFF5CE1E6) : Colors.white70),
+      title: Text(title,
+          style: TextStyle(
+            color: isActive ? const Color(0xFF5CE1E6) : Colors.white,
+            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+          )),
       tileColor: isActive ? const Color(0xFF1A2B4A) : null,
       onTap: onTap,
     );
   }
 }
 
-/// Draws a static isometric platform block.
-///
-/// Visible faces (matching the sketch):
-///   - Top face    → grass green
-///   - Front-left  → dirt brown (lighter)
-///   - Right face  → dirt brown (darker, shadow)
+// ─── Decorate bottom sheet ────────────────────────────────────────────────────
+
+class _DecorateSheet extends StatefulWidget {
+  final List<PlatformSlot> slots;
+  final int cols;
+  final int rows;
+  final void Function(int col, int row, CubeDecoration dec) onPlace;
+
+  const _DecorateSheet({
+    required this.slots,
+    required this.cols,
+    required this.rows,
+    required this.onPlace,
+  });
+
+  @override
+  State<_DecorateSheet> createState() => _DecorateSheetState();
+}
+
+class _DecorateSheetState extends State<_DecorateSheet> {
+  CubeDecoration? _selectedDec;
+
+  static const _plants = [
+    CubeDecoration.oakTree,
+    CubeDecoration.palmTree,
+    CubeDecoration.pineTree,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.62,
+      decoration: const BoxDecoration(
+        color: Color(0xFF0A1628),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.circular(20),
+          topRight: Radius.circular(20),
+        ),
+        border: Border(top: BorderSide(color: Color(0xFF5CE1E6), width: 1)),
+      ),
+      child: Column(
+        children: [
+          // Handle
+          Container(
+            margin: const EdgeInsets.symmetric(vertical: 12),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFF5CE1E6),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+
+          // Header
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Row(children: [
+              Icon(Icons.design_services, color: Color(0xFF5CE1E6), size: 24),
+              SizedBox(width: 12),
+              Text('Decorate Platform',
+                  style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          const Divider(
+              color: Color(0xFF5CE1E6), height: 16, indent: 20, endIndent: 20),
+
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Step 1: pick a decoration
+                  const Text('Step 1 — Pick a plant',
+                      style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: _plants.map((dec) {
+                      final selected = _selectedDec == dec;
+                      return Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _selectedDec = dec),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            margin: const EdgeInsets.only(right: 10),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14, horizontal: 8),
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? const Color(0xFF5CE1E6).withOpacity(0.15)
+                                  : const Color(0xFF1A2B4A).withOpacity(0.4),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: selected
+                                    ? const Color(0xFF5CE1E6)
+                                    : const Color(0xFF5CE1E6).withOpacity(0.3),
+                                width: selected ? 2 : 1,
+                              ),
+                            ),
+                            child: Column(children: [
+                              Icon(dec.icon,
+                                  color: const Color(0xFF5CE1E6), size: 28),
+                              const SizedBox(height: 8),
+                              Text(dec.label,
+                                  style: TextStyle(
+                                      color: selected
+                                          ? const Color(0xFF5CE1E6)
+                                          : Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500),
+                                  textAlign: TextAlign.center),
+                            ]),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Step 2: pick a slot
+                  Text('Step 2 — Choose a slot',
+                      style: TextStyle(
+                          color: _selectedDec == null
+                              ? Colors.white30
+                              : Colors.white70,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Row 1 = front of platform  ·  Row ${widget.rows} = back',
+                    style: const TextStyle(color: Colors.white30, fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Rows drawn back-to-front to match the platform's perspective
+                  for (int r = widget.rows - 1; r >= 0; r--) ...[
+                    Row(
+                      children: [
+                        SizedBox(
+                          width: 48,
+                          child: Text(
+                            r == 0 ? 'Front' : 'Row ${r + 1}',
+                            style: const TextStyle(
+                                color: Colors.white38, fontSize: 10),
+                          ),
+                        ),
+                        ...List.generate(widget.cols, (c) {
+                          final slot = widget.slots.firstWhere(
+                                  (s) => s.col == c && s.row == r);
+                          final occupied =
+                              slot.decoration != CubeDecoration.none;
+                          final canTap = _selectedDec != null;
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: canTap
+                                  ? () {
+                                widget.onPlace(c, r, _selectedDec!);
+                                Navigator.pop(context);
+                              }
+                                  : null,
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 180),
+                                margin: const EdgeInsets.fromLTRB(0, 0, 6, 0),
+                                height: 52,
+                                decoration: BoxDecoration(
+                                  color: occupied
+                                      ? const Color(0xFF388E3C).withOpacity(0.2)
+                                      : const Color(0xFF1A2B4A).withOpacity(0.4),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: occupied
+                                        ? const Color(0xFF66BB6A)
+                                        : canTap
+                                        ? const Color(0xFF5CE1E6)
+                                        .withOpacity(0.45)
+                                        : Colors.white12,
+                                    width: occupied ? 1.5 : 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      occupied
+                                          ? slot.decoration.icon
+                                          : Icons.add,
+                                      color: occupied
+                                          ? const Color(0xFF66BB6A)
+                                          : canTap
+                                          ? Colors.white38
+                                          : Colors.white12,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text('${c + 1}',
+                                        style: TextStyle(
+                                            color: occupied
+                                                ? const Color(0xFF66BB6A)
+                                                : Colors.white24,
+                                            fontSize: 10)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  const SizedBox(height: 8),
+
+                  // Clear all
+                  TextButton.icon(
+                    onPressed: () {
+                      for (final s in widget.slots) {
+                        widget.onPlace(s.col, s.row, CubeDecoration.none);
+                      }
+                      Navigator.pop(context);
+                    },
+                    icon: const Icon(Icons.delete_sweep,
+                        color: Colors.redAccent, size: 18),
+                    label: const Text('Clear all',
+                        style: TextStyle(color: Colors.redAccent)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF5CE1E6),
+                  foregroundColor: const Color(0xFF0A1628),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Close',
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Platform painter ─────────────────────────────────────────────────────────
+//
+// Visually IDENTICAL to the original _IsometricPlatformPainter.
+// The only addition is slot centre computation at the end of paint().
+//
+// The top face is a parallelogram with four corners:
+//   p1 = left vertex      p2 = back-left vertex
+//   p3 = back-right       p4 = front-right
+//
+// Slot centres are computed by bilinear interpolation inside this quad:
+//   col axis: p1 → p4  (left to right)
+//   row axis: p1 → p2  (front to back)
+//
+// Cell centre fraction = (index + 0.5) / count
+
 class _IsometricPlatformPainter extends CustomPainter {
+  final int cols;
+  final int rows;
+  final void Function(Map<String, Offset> centers)? onSlotCenters;
+
+  const _IsometricPlatformPainter({
+    this.cols = 5,
+    this.rows = 2,
+    this.onSlotCenters,
+  });
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
 
-    // ── Key vertices (normalised to canvas size) ──────────────────────────
-    //
-    //        p2 ────────── p3
-    //       /  (TOP FACE)  /
-    //      /              /
-    //    p1 ────────── p4
-    //    |  (FRONT-L) /|  (RIGHT)
-    //    |           / |
-    //   p1b ──── p4b   p3b
-    //
-    final p1  = Offset(w * 0.08, h * 0.46); // left vertex
-    final p2  = Offset(w * 0.37, h * 0.13); // back-left vertex (top)
-    final p3  = Offset(w * 0.92, h * 0.30); // back-right vertex (top)
-    final p4  = Offset(w * 0.63, h * 0.62); // front-right / centre junction
+    // ── Original vertices — do not change these ───────────────────────────
+    final p1  = Offset(w * 0.08, h * 0.46);
+    final p2  = Offset(w * 0.37, h * 0.13);
+    final p3  = Offset(w * 0.92, h * 0.30);
+    final p4  = Offset(w * 0.63, h * 0.62);
 
-    final p1b = Offset(w * 0.08, h * 0.76); // p1 dropped by block height
-    final p4b = Offset(w * 0.63, h * 0.92); // p4 dropped by block height
-    final p3b = Offset(w * 0.92, h * 0.60); // p3 dropped by block height
+    final p1b = Offset(w * 0.08, h * 0.76);
+    final p4b = Offset(w * 0.63, h * 0.92);
+    final p3b = Offset(w * 0.92, h * 0.60);
 
-    // ── Paths ─────────────────────────────────────────────────────────────
+    // ── Paths — original ──────────────────────────────────────────────────
     final topPath = Path()
       ..moveTo(p1.dx, p1.dy)
       ..lineTo(p2.dx, p2.dy)
@@ -933,9 +742,7 @@ class _IsometricPlatformPainter extends CustomPainter {
       ..lineTo(p4b.dx, p4b.dy)
       ..close();
 
-    // ── Paints ────────────────────────────────────────────────────────────
-
-    // Top face – grass gradient
+    // ── Paints — original ─────────────────────────────────────────────────
     final topRect = Rect.fromPoints(p2, p4);
     final topPaint = Paint()
       ..shader = const LinearGradient(
@@ -944,46 +751,54 @@ class _IsometricPlatformPainter extends CustomPainter {
         end: Alignment.bottomRight,
       ).createShader(topRect);
 
-    // Front-left face – mid-tone dirt
     final frontPaint = Paint()..color = const Color(0xFF8D6E63);
-
-    // Right face – darker dirt (shadow)
     final rightPaint = Paint()..color = const Color(0xFF5D4037);
 
-    // Stroke paints
     final edgePaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.2
       ..strokeJoin = StrokeJoin.round;
 
-    // ── Draw faces ────────────────────────────────────────────────────────
+    // ── Draw — original order ─────────────────────────────────────────────
     canvas.drawPath(frontPath, frontPaint);
     canvas.drawPath(rightPath, rightPaint);
     canvas.drawPath(topPath,   topPaint);
 
-    // ── Grass detail strokes on top face ──────────────────────────────────
     _drawGrassStrokes(canvas, p1, p2, p3, p4, w, h);
-
-    // ── Dirt detail strokes on front face ─────────────────────────────────
     _drawDirtStrokes(canvas, p1, p4, p4b, p1b, isRight: false);
-
-    // ── Dirt detail strokes on right face ─────────────────────────────────
     _drawDirtStrokes(canvas, p4, p3, p3b, p4b, isRight: true);
 
-    // ── Outline edges ─────────────────────────────────────────────────────
     edgePaint.color = const Color(0xFF1B5E20);
     canvas.drawPath(topPath, edgePaint);
-
     edgePaint.color = const Color(0xFF3E2723);
     canvas.drawPath(frontPath, edgePaint);
     canvas.drawPath(rightPath, edgePaint);
-
-    // Shared vertical edge (p4 → p4b)
-    edgePaint.color = const Color(0xFF3E2723);
     canvas.drawLine(p4, p4b, edgePaint);
+
+    // ── Invisible slot grid on top face ───────────────────────────────────
+    //
+    // Parameterise the top-face parallelogram:
+    //   tc = fraction along p1→p4 (column, left→right)
+    //   tr = fraction along p1→p2 (row, front→back)
+    //
+    // Each slot centre = p1 + (p4-p1)*tc + (p2-p1)*tr
+
+    final slotCenters = <String, Offset>{};
+    final colVec = p4 - p1;
+    final rowVec = p2 - p1;
+
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        final tc = (c + 0.5) / cols;
+        final tr = (r + 0.5) / rows;
+        slotCenters['${c}_$r'] = p1 + colVec * tc + rowVec * tr;
+      }
+    }
+
+    onSlotCenters?.call(slotCenters);
   }
 
-  /// Draws zigzag grass strokes across the top face.
+  // ── Original grass strokes — untouched ────────────────────────────────────
   void _drawGrassStrokes(
       Canvas canvas,
       Offset p1, Offset p2, Offset p3, Offset p4,
@@ -995,23 +810,21 @@ class _IsometricPlatformPainter extends CustomPainter {
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
 
-    const int rows = 5;
-    const int cols = 8;
+    const int rowCount = 5;
+    const int colCount = 8;
 
-    for (int row = 1; row < rows; row++) {
-      final t = row / rows;
-      // Interpolate left edge (p1→p2) and right edge (p4→p3)
+    for (int row = 1; row < rowCount; row++) {
+      final t = row / rowCount;
       final leftEdge  = Offset.lerp(p1, p2, t)!;
       final rightEdge = Offset.lerp(p4, p3, t)!;
 
       final path = Path();
       bool first = true;
 
-      for (int col = 0; col <= cols; col++) {
-        final s = col / cols;
+      for (int col = 0; col <= colCount; col++) {
+        final s = col / colCount;
         final base = Offset.lerp(leftEdge, rightEdge, s)!;
 
-        // Perpendicular direction (roughly "up" on the face)
         final up = Offset(
           (p2 - p1).dx / (p2 - p1).distance,
           (p2 - p1).dy / (p2 - p1).distance,
@@ -1030,7 +843,7 @@ class _IsometricPlatformPainter extends CustomPainter {
     }
   }
 
-  /// Draws horizontal dirt/root strokes across a quad face.
+  // ── Original dirt strokes — untouched ─────────────────────────────────────
   void _drawDirtStrokes(
       Canvas canvas,
       Offset tl, Offset tr, Offset br, Offset bl, {
@@ -1051,15 +864,14 @@ class _IsometricPlatformPainter extends CustomPainter {
       final left  = Offset.lerp(tl, bl, t)!;
       final right = Offset.lerp(tr, br, t)!;
 
-      // Wavy stroke
       final path = Path();
       const int segments = 10;
       path.moveTo(left.dx, left.dy);
 
       for (int s = 1; s <= segments; s++) {
-        final u     = s / segments;
-        final mid   = Offset.lerp(left, right, u)!;
-        final wave  = math.sin(u * math.pi * 4) * 2.5;
+        final u    = s / segments;
+        final mid  = Offset.lerp(left, right, u)!;
+        final wave = math.sin(u * math.pi * 4) * 2.5;
         path.lineTo(mid.dx, mid.dy + wave);
       }
 
@@ -1068,5 +880,159 @@ class _IsometricPlatformPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _IsometricPlatformPainter old) =>
+      old.cols != cols || old.rows != rows;
+}
+
+// ─── Decoration painter ───────────────────────────────────────────────────────
+
+class _DecorationPainter extends CustomPainter {
+  final CubeDecoration type;
+  const _DecorationPainter({required this.type});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    switch (type) {
+      case CubeDecoration.oakTree:  _drawOakTree(canvas, size);  break;
+      case CubeDecoration.palmTree: _drawPalmTree(canvas, size); break;
+      case CubeDecoration.pineTree: _drawPineTree(canvas, size); break;
+      case CubeDecoration.none:     break;
+    }
+  }
+
+  void _drawOakTree(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final trunkW = size.width * 0.16;
+    final trunkH = size.height * 0.35;
+    final trunkTop = size.height - trunkH;
+
+    // Trunk
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - trunkW / 2, trunkTop, trunkW, trunkH),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0xFF6D4C41),
+    );
+
+    // Shadow layer
+    canvas.drawCircle(
+      Offset(cx + size.width * 0.06, trunkTop - size.width * 0.18),
+      size.width * 0.44,
+      Paint()..color = const Color(0xFF1B5E20),
+    );
+    // Main canopy
+    canvas.drawCircle(
+      Offset(cx, trunkTop - size.width * 0.22),
+      size.width * 0.44,
+      Paint()..color = const Color(0xFF2E7D32),
+    );
+    // Highlight clusters
+    canvas.drawCircle(
+      Offset(cx - size.width * 0.08, trunkTop - size.width * 0.32),
+      size.width * 0.28,
+      Paint()..color = const Color(0xFF388E3C),
+    );
+    canvas.drawCircle(
+      Offset(cx + size.width * 0.14, trunkTop - size.width * 0.26),
+      size.width * 0.22,
+      Paint()..color = const Color(0xFF43A047),
+    );
+  }
+
+  void _drawPalmTree(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+
+    final trunkPath = Path()
+      ..moveTo(cx, size.height)
+      ..quadraticBezierTo(
+        cx + size.width * 0.18, size.height * 0.55,
+        cx - size.width * 0.08, size.height * 0.22,
+      );
+
+    canvas.drawPath(trunkPath, Paint()
+      ..color = const Color(0xFF8D6E63)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.14
+      ..strokeCap = StrokeCap.round);
+
+    canvas.drawPath(trunkPath, Paint()
+      ..color = const Color(0xFFBCAAA4)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.width * 0.04
+      ..strokeCap = StrokeCap.round);
+
+    final tipX = cx - size.width * 0.08;
+    final tipY = size.height * 0.22;
+
+    for (final angle in [-80.0, -45.0, -10.0, 25.0, 60.0, 95.0, 130.0]) {
+      final rad = angle * math.pi / 180;
+      final len = size.width * 0.55;
+      final ex = tipX + len * math.cos(rad);
+      final ey = tipY + len * math.sin(rad);
+      final ctrlX = tipX + len * 0.5 * math.cos(rad) +
+          math.sin(rad) * size.width * 0.08;
+      final ctrlY = tipY + len * 0.5 * math.sin(rad) -
+          math.cos(rad).abs() * size.width * 0.12;
+
+      final frond = Path()
+        ..moveTo(tipX, tipY)
+        ..quadraticBezierTo(ctrlX, ctrlY, ex, ey);
+
+      canvas.drawPath(frond, Paint()
+        ..color = const Color(0xFF33691E)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.width * 0.07
+        ..strokeCap = StrokeCap.round);
+      canvas.drawPath(frond, Paint()
+        ..color = const Color(0xFF558B2F)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = size.width * 0.035
+        ..strokeCap = StrokeCap.round);
+    }
+
+    canvas.drawCircle(
+        Offset(tipX + size.width * 0.08, tipY + size.height * 0.05),
+        size.width * 0.07,
+        Paint()..color = const Color(0xFF795548));
+    canvas.drawCircle(
+        Offset(tipX - size.width * 0.06, tipY + size.height * 0.07),
+        size.width * 0.06,
+        Paint()..color = const Color(0xFF6D4C41));
+  }
+
+  void _drawPineTree(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(cx - size.width * 0.09, size.height * 0.72,
+            size.width * 0.18, size.height * 0.28),
+        const Radius.circular(2),
+      ),
+      Paint()..color = const Color(0xFF5D4037),
+    );
+
+    for (final layer in [
+      (yB: size.height * 0.80, hW: size.width * 0.50, c: const Color(0xFF1B5E20)),
+      (yB: size.height * 0.62, hW: size.width * 0.38, c: const Color(0xFF2E7D32)),
+      (yB: size.height * 0.44, hW: size.width * 0.26, c: const Color(0xFF388E3C)),
+      (yB: size.height * 0.26, hW: size.width * 0.15, c: const Color(0xFF43A047)),
+    ]) {
+      final tipY = layer.yB - size.height * 0.25;
+      final path = Path()
+        ..moveTo(cx, tipY)
+        ..lineTo(cx - layer.hW, layer.yB)
+        ..lineTo(cx + layer.hW, layer.yB)
+        ..close();
+      canvas.drawPath(path, Paint()..color = layer.c);
+      canvas.drawPath(path, Paint()
+        ..color = const Color(0xFF1B5E20)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DecorationPainter old) => old.type != type;
 }
