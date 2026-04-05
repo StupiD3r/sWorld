@@ -6,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dashboard_page.dart';
 
 class ActivityPage extends StatefulWidget {
-  const ActivityPage({super.key});
+  final String username;
+
+  const ActivityPage({super.key, required this.username});
 
   @override
   State<ActivityPage> createState() => _ActivityPageState();
@@ -33,14 +35,16 @@ class _ActivityPageState extends State<ActivityPage> {
 
   Future<void> _loadTotalCoins() async {
     final prefs = await SharedPreferences.getInstance();
+    final coinKey = 'totalCoins_${widget.username}';
     setState(() {
-      _totalCoins = prefs.getInt('totalCoins') ?? 0;
+      _totalCoins = prefs.getInt(coinKey) ?? 0;
     });
   }
 
   Future<void> _saveTotalCoins() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('totalCoins', _totalCoins);
+    final coinKey = 'totalCoins_${widget.username}';
+    await prefs.setInt(coinKey, _totalCoins);
   }
 
   void _initializeStepCounter() {
