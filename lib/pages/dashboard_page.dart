@@ -9,6 +9,37 @@ import 'profile_page.dart';
 
 enum CubeDecoration { none, oakTree, palmTree, pineTree }
 
+enum DecorationCategory { trees, animals, terrain }
+
+extension DecorationCategoryLabel on DecorationCategory {
+  String get label {
+    switch (this) {
+      case DecorationCategory.trees:   return 'Trees';
+      case DecorationCategory.animals: return 'Animals';
+      case DecorationCategory.terrain: return 'Terrain';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case DecorationCategory.trees:   return Icons.park;
+      case DecorationCategory.animals: return Icons.pets;
+      case DecorationCategory.terrain: return Icons.landscape;
+    }
+  }
+
+  List<CubeDecoration> get items {
+    switch (this) {
+      case DecorationCategory.trees:
+        return [CubeDecoration.oakTree, CubeDecoration.palmTree, CubeDecoration.pineTree];
+      case DecorationCategory.animals:
+        return []; // extend later
+      case DecorationCategory.terrain:
+        return []; // extend later
+    }
+  }
+}
+
 extension CubeDecorationLabel on CubeDecoration {
   String get label {
     switch (this) {
@@ -32,8 +63,8 @@ extension CubeDecorationLabel on CubeDecoration {
 // ─── Slot model ───────────────────────────────────────────────────────────────
 
 class PlatformSlot {
-  final int col; // 0 = left, cols-1 = right
-  final int row; // 0 = front, rows-1 = back
+  final int col;
+  final int row;
   CubeDecoration decoration;
 
   PlatformSlot({
@@ -65,14 +96,10 @@ class _DashboardPageState extends State<DashboardPage>
     with WidgetsBindingObserver {
   int _totalCoins = 0;
 
-  // Grid dimensions — change these to add more slots
   static const int _cols = 5;
   static const int _rows = 2;
 
   late List<PlatformSlot> _slots;
-
-  // Populated after each paint — maps "col_row" → screen-space Offset of
-  // that slot's centre on the platform top face
   Map<String, Offset> _slotCenters = {};
 
   @override
@@ -139,6 +166,13 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
+    // ── FIX: sort slots back-to-front (high row → low row) so front
+    //         decorations are painted last (on top).
+    final sortedOccupied = _slots
+        .where((s) => s.decoration != CubeDecoration.none)
+        .toList()
+      ..sort((a, b) => b.row.compareTo(a.row));
+
     return Scaffold(
       backgroundColor: const Color(0xFF0A1628),
       appBar: AppBar(
@@ -158,7 +192,6 @@ class _DashboardPageState extends State<DashboardPage>
       body: SafeArea(
         child: Column(
           children: [
-            // ── Platform + decorations ────────────────────────────────────
             Expanded(
               flex: 3,
               child: Center(
@@ -173,7 +206,6 @@ class _DashboardPageState extends State<DashboardPage>
                         return Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            // Original platform — visually untouched
                             Positioned.fill(
                               child: CustomPaint(
                                 painter: _IsometricPlatformPainter(
@@ -183,8 +215,7 @@ class _DashboardPageState extends State<DashboardPage>
                                     WidgetsBinding.instance
                                         .addPostFrameCallback((_) {
                                       if (mounted) {
-                                        setState(
-                                                () => _slotCenters = centers);
+                                        setState(() => _slotCenters = centers);
                                       }
                                     });
                                   },
@@ -192,18 +223,12 @@ class _DashboardPageState extends State<DashboardPage>
                               ),
                             ),
 
-                            // Decoration widgets — one per occupied slot
-                            ..._slots
-                                .where((s) =>
-                            s.decoration != CubeDecoration.none)
-                                .map((slot) {
+                            // ── FIX: render back rows first, front rows last ──
+                            ...sortedOccupied.map((slot) {
                               final key = '${slot.col}_${slot.row}';
                               final center = _slotCenters[key];
-                              if (center == null) {
-                                return const SizedBox.shrink();
-                              }
+                              if (center == null) return const SizedBox.shrink();
 
-                              // Scale tree size to slot width so they fit neatly
                               final treeH = h * 0.55;
                               final treeW = w / _cols * 0.85;
 
@@ -229,7 +254,6 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             ),
 
-            // ── Decorate button ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Center(
@@ -238,8 +262,7 @@ class _DashboardPageState extends State<DashboardPage>
                   icon: const Icon(Icons.design_services, size: 20),
                   label: const Text(
                     'Decorate',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5CE1E6),
@@ -436,13 +459,10 @@ class _DecorateSheet extends StatefulWidget {
 }
 
 class _DecorateSheetState extends State<_DecorateSheet> {
+  // null  = showing category picker
+  // non-null = showing items inside that category
+  DecorationCategory? _activeCategory;
   CubeDecoration? _selectedDec;
-
-  static const _plants = [
-    CubeDecoration.oakTree,
-    CubeDecoration.palmTree,
-    CubeDecoration.pineTree,
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -470,188 +490,44 @@ class _DecorateSheetState extends State<_DecorateSheet> {
           ),
 
           // Header
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 20),
-            child: Row(children: [
-              Icon(Icons.design_services, color: Color(0xFF5CE1E6), size: 24),
-              SizedBox(width: 12),
-              Text('Decorate Platform',
-                  style: TextStyle(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Row(
+              children: [
+                if (_activeCategory != null)
+                  GestureDetector(
+                    onTap: () => setState(() {
+                      _activeCategory = null;
+                      _selectedDec = null;
+                    }),
+                    child: const Padding(
+                      padding: EdgeInsets.only(right: 10),
+                      child: Icon(Icons.arrow_back_ios_new,
+                          color: Color(0xFF5CE1E6), size: 18),
+                    ),
+                  ),
+                const Icon(Icons.design_services,
+                    color: Color(0xFF5CE1E6), size: 24),
+                const SizedBox(width: 12),
+                Text(
+                  _activeCategory == null
+                      ? 'Decorate Platform'
+                      : _activeCategory!.label,
+                  style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
-                      fontWeight: FontWeight.bold)),
-            ]),
+                      fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
           ),
           const Divider(
               color: Color(0xFF5CE1E6), height: 16, indent: 20, endIndent: 20),
 
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Step 1: pick a decoration
-                  const Text('Step 1 — Pick a plant',
-                      style: TextStyle(
-                          color: Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: _plants.map((dec) {
-                      final selected = _selectedDec == dec;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedDec = dec),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            margin: const EdgeInsets.only(right: 10),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 14, horizontal: 8),
-                            decoration: BoxDecoration(
-                              color: selected
-                                  ? const Color(0xFF5CE1E6).withOpacity(0.15)
-                                  : const Color(0xFF1A2B4A).withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: selected
-                                    ? const Color(0xFF5CE1E6)
-                                    : const Color(0xFF5CE1E6).withOpacity(0.3),
-                                width: selected ? 2 : 1,
-                              ),
-                            ),
-                            child: Column(children: [
-                              Icon(dec.icon,
-                                  color: const Color(0xFF5CE1E6), size: 28),
-                              const SizedBox(height: 8),
-                              Text(dec.label,
-                                  style: TextStyle(
-                                      color: selected
-                                          ? const Color(0xFF5CE1E6)
-                                          : Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w500),
-                                  textAlign: TextAlign.center),
-                            ]),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Step 2: pick a slot
-                  Text('Step 2 — Choose a slot',
-                      style: TextStyle(
-                          color: _selectedDec == null
-                              ? Colors.white30
-                              : Colors.white70,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Row 1 = front of platform  ·  Row ${widget.rows} = back',
-                    style: const TextStyle(color: Colors.white30, fontSize: 11),
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Rows drawn back-to-front to match the platform's perspective
-                  for (int r = widget.rows - 1; r >= 0; r--) ...[
-                    Row(
-                      children: [
-                        SizedBox(
-                          width: 48,
-                          child: Text(
-                            r == 0 ? 'Front' : 'Row ${r + 1}',
-                            style: const TextStyle(
-                                color: Colors.white38, fontSize: 10),
-                          ),
-                        ),
-                        ...List.generate(widget.cols, (c) {
-                          final slot = widget.slots.firstWhere(
-                                  (s) => s.col == c && s.row == r);
-                          final occupied =
-                              slot.decoration != CubeDecoration.none;
-                          final canTap = _selectedDec != null;
-                          return Expanded(
-                            child: GestureDetector(
-                              onTap: canTap
-                                  ? () {
-                                widget.onPlace(c, r, _selectedDec!);
-                                Navigator.pop(context);
-                              }
-                                  : null,
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 180),
-                                margin: const EdgeInsets.fromLTRB(0, 0, 6, 0),
-                                height: 52,
-                                decoration: BoxDecoration(
-                                  color: occupied
-                                      ? const Color(0xFF388E3C).withOpacity(0.2)
-                                      : const Color(0xFF1A2B4A).withOpacity(0.4),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: occupied
-                                        ? const Color(0xFF66BB6A)
-                                        : canTap
-                                        ? const Color(0xFF5CE1E6)
-                                        .withOpacity(0.45)
-                                        : Colors.white12,
-                                    width: occupied ? 1.5 : 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(
-                                      occupied
-                                          ? slot.decoration.icon
-                                          : Icons.add,
-                                      color: occupied
-                                          ? const Color(0xFF66BB6A)
-                                          : canTap
-                                          ? Colors.white38
-                                          : Colors.white12,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(height: 3),
-                                    Text('${c + 1}',
-                                        style: TextStyle(
-                                            color: occupied
-                                                ? const Color(0xFF66BB6A)
-                                                : Colors.white24,
-                                            fontSize: 10)),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-
-                  const SizedBox(height: 8),
-
-                  // Clear all
-                  TextButton.icon(
-                    onPressed: () {
-                      for (final s in widget.slots) {
-                        widget.onPlace(s.col, s.row, CubeDecoration.none);
-                      }
-                      Navigator.pop(context);
-                    },
-                    icon: const Icon(Icons.delete_sweep,
-                        color: Colors.redAccent, size: 18),
-                    label: const Text('Clear all',
-                        style: TextStyle(color: Colors.redAccent)),
-                  ),
-                ],
-              ),
-            ),
+            child: _activeCategory == null
+                ? _buildCategoryPicker()
+                : _buildItemAndSlotPicker(),
           ),
 
           Padding(
@@ -677,22 +553,246 @@ class _DecorateSheetState extends State<_DecorateSheet> {
       ),
     );
   }
+
+  // ── Step A: category grid ─────────────────────────────────────────────────
+
+  Widget _buildCategoryPicker() {
+    const categories = DecorationCategory.values;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Choose a category',
+              style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500)),
+          const SizedBox(height: 16),
+          Row(
+            children: categories.map((cat) {
+              final hasItems = cat.items.isNotEmpty;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: hasItems
+                      ? () => setState(() => _activeCategory = cat)
+                      : null,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 20, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: hasItems
+                          ? const Color(0xFF1A2B4A).withOpacity(0.6)
+                          : const Color(0xFF1A2B4A).withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: hasItems
+                            ? const Color(0xFF5CE1E6).withOpacity(0.6)
+                            : Colors.white12,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(children: [
+                      Icon(cat.icon,
+                          color: hasItems
+                              ? const Color(0xFF5CE1E6)
+                              : Colors.white24,
+                          size: 32),
+                      const SizedBox(height: 10),
+                      Text(cat.label,
+                          style: TextStyle(
+                              color: hasItems ? Colors.white : Colors.white24,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600),
+                          textAlign: TextAlign.center),
+                      if (!hasItems) ...[
+                        const SizedBox(height: 4),
+                        const Text('Coming soon',
+                            style: TextStyle(
+                                color: Colors.white24, fontSize: 10)),
+                      ],
+                    ]),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Step B: item picker + slot grid ──────────────────────────────────────
+
+  Widget _buildItemAndSlotPicker() {
+    final items = _activeCategory!.items;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Step 1: pick a decoration within the category
+          Text('Step 1 — Pick a ${_activeCategory!.label.toLowerCase().replaceAll('s', '')}',
+              style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500)),
+          const SizedBox(height: 12),
+          Row(
+            children: items.map((dec) {
+              final selected = _selectedDec == dec;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => setState(() => _selectedDec = dec),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? const Color(0xFF5CE1E6).withOpacity(0.15)
+                          : const Color(0xFF1A2B4A).withOpacity(0.4),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: selected
+                            ? const Color(0xFF5CE1E6)
+                            : const Color(0xFF5CE1E6).withOpacity(0.3),
+                        width: selected ? 2 : 1,
+                      ),
+                    ),
+                    child: Column(children: [
+                      Icon(dec.icon,
+                          color: const Color(0xFF5CE1E6), size: 28),
+                      const SizedBox(height: 8),
+                      Text(dec.label,
+                          style: TextStyle(
+                              color: selected
+                                  ? const Color(0xFF5CE1E6)
+                                  : Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w500),
+                          textAlign: TextAlign.center),
+                    ]),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 24),
+
+          // Step 2: pick a slot
+          Text('Step 2 — Choose a slot',
+              style: TextStyle(
+                  color: _selectedDec == null
+                      ? Colors.white30
+                      : Colors.white70,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500)),
+          const SizedBox(height: 4),
+          Text(
+            'Row 1 = front of platform  ·  Row ${widget.rows} = back',
+            style: const TextStyle(color: Colors.white30, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+
+          for (int r = widget.rows - 1; r >= 0; r--) ...[
+            Row(
+              children: [
+                SizedBox(
+                  width: 48,
+                  child: Text(
+                    r == 0 ? 'Front' : 'Row ${r + 1}',
+                    style:
+                    const TextStyle(color: Colors.white38, fontSize: 10),
+                  ),
+                ),
+                ...List.generate(widget.cols, (c) {
+                  final slot = widget.slots
+                      .firstWhere((s) => s.col == c && s.row == r);
+                  final occupied = slot.decoration != CubeDecoration.none;
+                  final canTap = _selectedDec != null;
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: canTap
+                          ? () {
+                        widget.onPlace(c, r, _selectedDec!);
+                        Navigator.pop(context);
+                      }
+                          : null,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        margin: const EdgeInsets.fromLTRB(0, 0, 6, 0),
+                        height: 52,
+                        decoration: BoxDecoration(
+                          color: occupied
+                              ? const Color(0xFF388E3C).withOpacity(0.2)
+                              : const Color(0xFF1A2B4A).withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: occupied
+                                ? const Color(0xFF66BB6A)
+                                : canTap
+                                ? const Color(0xFF5CE1E6).withOpacity(0.45)
+                                : Colors.white12,
+                            width: occupied ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              occupied ? slot.decoration.icon : Icons.add,
+                              color: occupied
+                                  ? const Color(0xFF66BB6A)
+                                  : canTap
+                                  ? Colors.white38
+                                  : Colors.white12,
+                              size: 18,
+                            ),
+                            const SizedBox(height: 3),
+                            Text('${c + 1}',
+                                style: TextStyle(
+                                    color: occupied
+                                        ? const Color(0xFF66BB6A)
+                                        : Colors.white24,
+                                    fontSize: 10)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+
+          const SizedBox(height: 8),
+
+          TextButton.icon(
+            onPressed: () {
+              for (final s in widget.slots) {
+                widget.onPlace(s.col, s.row, CubeDecoration.none);
+              }
+              Navigator.pop(context);
+            },
+            icon: const Icon(Icons.delete_sweep,
+                color: Colors.redAccent, size: 18),
+            label: const Text('Clear all',
+                style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Platform painter ─────────────────────────────────────────────────────────
-//
-// Visually IDENTICAL to the original _IsometricPlatformPainter.
-// The only addition is slot centre computation at the end of paint().
-//
-// The top face is a parallelogram with four corners:
-//   p1 = left vertex      p2 = back-left vertex
-//   p3 = back-right       p4 = front-right
-//
-// Slot centres are computed by bilinear interpolation inside this quad:
-//   col axis: p1 → p4  (left to right)
-//   row axis: p1 → p2  (front to back)
-//
-// Cell centre fraction = (index + 0.5) / count
 
 class _IsometricPlatformPainter extends CustomPainter {
   final int cols;
@@ -710,7 +810,6 @@ class _IsometricPlatformPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // ── Original vertices — do not change these ───────────────────────────
     final p1  = Offset(w * 0.08, h * 0.46);
     final p2  = Offset(w * 0.37, h * 0.13);
     final p3  = Offset(w * 0.92, h * 0.30);
@@ -720,7 +819,6 @@ class _IsometricPlatformPainter extends CustomPainter {
     final p4b = Offset(w * 0.63, h * 0.92);
     final p3b = Offset(w * 0.92, h * 0.60);
 
-    // ── Paths — original ──────────────────────────────────────────────────
     final topPath = Path()
       ..moveTo(p1.dx, p1.dy)
       ..lineTo(p2.dx, p2.dy)
@@ -742,7 +840,6 @@ class _IsometricPlatformPainter extends CustomPainter {
       ..lineTo(p4b.dx, p4b.dy)
       ..close();
 
-    // ── Paints — original ─────────────────────────────────────────────────
     final topRect = Rect.fromPoints(p2, p4);
     final topPaint = Paint()
       ..shader = const LinearGradient(
@@ -759,7 +856,6 @@ class _IsometricPlatformPainter extends CustomPainter {
       ..strokeWidth = 2.2
       ..strokeJoin = StrokeJoin.round;
 
-    // ── Draw — original order ─────────────────────────────────────────────
     canvas.drawPath(frontPath, frontPaint);
     canvas.drawPath(rightPath, rightPaint);
     canvas.drawPath(topPath,   topPaint);
@@ -774,14 +870,6 @@ class _IsometricPlatformPainter extends CustomPainter {
     canvas.drawPath(frontPath, edgePaint);
     canvas.drawPath(rightPath, edgePaint);
     canvas.drawLine(p4, p4b, edgePaint);
-
-    // ── Invisible slot grid on top face ───────────────────────────────────
-    //
-    // Parameterise the top-face parallelogram:
-    //   tc = fraction along p1→p4 (column, left→right)
-    //   tr = fraction along p1→p2 (row, front→back)
-    //
-    // Each slot centre = p1 + (p4-p1)*tc + (p2-p1)*tr
 
     final slotCenters = <String, Offset>{};
     final colVec = p4 - p1;
@@ -798,7 +886,6 @@ class _IsometricPlatformPainter extends CustomPainter {
     onSlotCenters?.call(slotCenters);
   }
 
-  // ── Original grass strokes — untouched ────────────────────────────────────
   void _drawGrassStrokes(
       Canvas canvas,
       Offset p1, Offset p2, Offset p3, Offset p4,
@@ -843,7 +930,6 @@ class _IsometricPlatformPainter extends CustomPainter {
     }
   }
 
-  // ── Original dirt strokes — untouched ─────────────────────────────────────
   void _drawDirtStrokes(
       Canvas canvas,
       Offset tl, Offset tr, Offset br, Offset bl, {
@@ -906,7 +992,6 @@ class _DecorationPainter extends CustomPainter {
     final trunkH = size.height * 0.35;
     final trunkTop = size.height - trunkH;
 
-    // Trunk
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(cx - trunkW / 2, trunkTop, trunkW, trunkH),
@@ -915,19 +1000,16 @@ class _DecorationPainter extends CustomPainter {
       Paint()..color = const Color(0xFF6D4C41),
     );
 
-    // Shadow layer
     canvas.drawCircle(
       Offset(cx + size.width * 0.06, trunkTop - size.width * 0.18),
       size.width * 0.44,
       Paint()..color = const Color(0xFF1B5E20),
     );
-    // Main canopy
     canvas.drawCircle(
       Offset(cx, trunkTop - size.width * 0.22),
       size.width * 0.44,
       Paint()..color = const Color(0xFF2E7D32),
     );
-    // Highlight clusters
     canvas.drawCircle(
       Offset(cx - size.width * 0.08, trunkTop - size.width * 0.32),
       size.width * 0.28,
