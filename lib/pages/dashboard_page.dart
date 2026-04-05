@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'activity_page.dart';
 import 'login_page.dart';
 import 'profile_page.dart';
+import 'community_page.dart';
 
 // ─── Decoration types ─────────────────────────────────────────────────────────
 
@@ -158,13 +159,15 @@ class _DashboardPageState extends State<DashboardPage>
       await _saveTotalCoins(); // Save admin coins
     } else {
       final prefs = await SharedPreferences.getInstance();
-      setState(() => _totalCoins = prefs.getInt('totalCoins') ?? 0);
+      final coinKey = 'totalCoins_${widget.username}';
+      setState(() => _totalCoins = prefs.getInt(coinKey) ?? 0);
     }
   }
 
   Future<void> _saveTotalCoins() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt('totalCoins', _totalCoins);
+    final coinKey = 'totalCoins_${widget.username}';
+    await prefs.setInt(coinKey, _totalCoins);
   }
 
   void _showDecorateBottomSheet() {
@@ -484,6 +487,21 @@ class _DashboardPageState extends State<DashboardPage>
                       MaterialPageRoute(
                           builder: (context) => const ActivityPage()),
                     ).then((_) => _loadTotalCoins());
+                  },
+                ),
+                _buildDrawerItem(
+                  icon: Icons.people_alt,
+                  title: 'Community',
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => CommunityPage(
+                            username: widget.username,
+                            isAdmin: widget.isAdmin,
+                          )),
+                    );
                   },
                 ),
               ],

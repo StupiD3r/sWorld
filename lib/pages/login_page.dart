@@ -112,6 +112,10 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isLoading = true);
 
     try {
+      // Force account selection by signing out first
+      await _googleSignIn.signOut();
+      
+      // Sign in with forced account selection
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
       if (googleUser == null) {
@@ -130,6 +134,7 @@ class _LoginPageState extends State<LoginPage> {
             username: displayName,
             email: email,
             photoUrl: photoUrl,
+            isAdmin: false,
           ),
         ),
         (route) => false,
