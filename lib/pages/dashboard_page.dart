@@ -7,7 +7,7 @@ import 'profile_page.dart';
 
 // ─── Decoration types ─────────────────────────────────────────────────────────
 
-enum CubeDecoration { none, oakTree, palmTree, pineTree }
+enum CubeDecoration { none, oakTree, palmTree, pineTree, bird, pig, horse }
 
 enum DecorationCategory { trees, animals, terrain }
 
@@ -33,9 +33,9 @@ extension DecorationCategoryLabel on DecorationCategory {
       case DecorationCategory.trees:
         return [CubeDecoration.oakTree, CubeDecoration.palmTree, CubeDecoration.pineTree];
       case DecorationCategory.animals:
-        return []; // extend later
+        return [CubeDecoration.bird, CubeDecoration.pig, CubeDecoration.horse];
       case DecorationCategory.terrain:
-        return []; // extend later
+        return [];
     }
   }
 }
@@ -47,6 +47,9 @@ extension CubeDecorationLabel on CubeDecoration {
       case CubeDecoration.oakTree:  return 'Oak Tree';
       case CubeDecoration.palmTree: return 'Palm Tree';
       case CubeDecoration.pineTree: return 'Pine Tree';
+      case CubeDecoration.bird:     return 'Bird';
+      case CubeDecoration.pig:      return 'Pig';
+      case CubeDecoration.horse:    return 'Horse';
     }
   }
 
@@ -56,6 +59,9 @@ extension CubeDecorationLabel on CubeDecoration {
       case CubeDecoration.oakTree:  return Icons.park;
       case CubeDecoration.palmTree: return Icons.nature;
       case CubeDecoration.pineTree: return Icons.forest;
+      case CubeDecoration.bird:     return Icons.flight;
+      case CubeDecoration.pig:      return Icons.pets;
+      case CubeDecoration.horse:    return Icons.directions_run;
     }
   }
 }
@@ -166,12 +172,15 @@ class _DashboardPageState extends State<DashboardPage>
 
   @override
   Widget build(BuildContext context) {
-    // ── FIX: sort slots back-to-front (high row → low row) so front
-    //         decorations are painted last (on top).
+    // Sort back rows first so front-row decorations render on top
     final sortedOccupied = _slots
         .where((s) => s.decoration != CubeDecoration.none)
         .toList()
       ..sort((a, b) => b.row.compareTo(a.row));
+
+    // Check if any bird is placed (birds soar freely above the whole platform)
+    final hasBird = _slots.any(
+            (s) => s.decoration == CubeDecoration.bird);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A1628),
@@ -206,6 +215,7 @@ class _DashboardPageState extends State<DashboardPage>
                         return Stack(
                           clipBehavior: Clip.none,
                           children: [
+                            // Platform
                             Positioned.fill(
                               child: CustomPaint(
                                 painter: _IsometricPlatformPainter(
@@ -215,7 +225,8 @@ class _DashboardPageState extends State<DashboardPage>
                                     WidgetsBinding.instance
                                         .addPostFrameCallback((_) {
                                       if (mounted) {
-                                        setState(() => _slotCenters = centers);
+                                        setState(
+                                                () => _slotCenters = centers);
                                       }
                                     });
                                   },
@@ -223,28 +234,45 @@ class _DashboardPageState extends State<DashboardPage>
                               ),
                             ),
 
-                            // ── FIX: render back rows first, front rows last ──
-                            ...sortedOccupied.map((slot) {
+                            // Trees + land animals (slot-anchored)
+                            ...sortedOccupied
+                                .where((s) => s.decoration != CubeDecoration.bird)
+                                .map((slot) {
                               final key = '${slot.col}_${slot.row}';
                               final center = _slotCenters[key];
                               if (center == null) return const SizedBox.shrink();
 
-                              final treeH = h * 0.55;
-                              final treeW = w / _cols * 0.85;
+                              final itemH = h * 0.55;
+                              final itemW = w / _cols * 0.85;
 
                               return Positioned(
-                                left: center.dx - treeW / 2,
-                                top:  center.dy - treeH,
+                                left: center.dx - itemW / 2,
+                                top:  center.dy - itemH,
                                 child: SizedBox(
-                                  width: treeW,
-                                  height: treeH,
-                                  child: CustomPaint(
+                                  width: itemW,
+                                  height: itemH,
+                                  child: _isLandAnimal(slot.decoration)
+                                      ? _AnimatedLandAnimal(
+                                    type: slot.decoration,
+                                    slotWidth: itemW,
+                                    slotHeight: itemH,
+                                  )
+                                      : CustomPaint(
                                     painter: _DecorationPainter(
                                         type: slot.decoration),
                                   ),
                                 ),
                               );
                             }),
+
+                            // Bird soars freely above the whole platform
+                            if (hasBird)
+                              Positioned.fill(
+                                child: _AnimatedBirdFlock(
+                                  platformW: w,
+                                  platformH: h,
+                                ),
+                              ),
                           ],
                         );
                       },
@@ -262,7 +290,8 @@ class _DashboardPageState extends State<DashboardPage>
                   icon: const Icon(Icons.design_services, size: 20),
                   label: const Text(
                     'Decorate',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF5CE1E6),
@@ -289,7 +318,10 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
-  // ── Drawer ────────────────────────────────────────────────────────────────
+  bool _isLandAnimal(CubeDecoration dec) =>
+      dec == CubeDecoration.pig || dec == CubeDecoration.horse;
+
+  // ── Drawer ──────────────────────────────────────────────────────────────────
 
   Widget _buildDrawer() {
     return Drawer(
@@ -439,6 +471,529 @@ class _DashboardPageState extends State<DashboardPage>
   }
 }
 
+// ─── Animated bird flock — soars freely above the whole platform ──────────────
+
+class _AnimatedBirdFlock extends StatefulWidget {
+  final double platformW;
+  final double platformH;
+
+  const _AnimatedBirdFlock({
+    required this.platformW,
+    required this.platformH,
+  });
+
+  @override
+  State<_AnimatedBirdFlock> createState() => _AnimatedBirdFlockState();
+}
+
+class _AnimatedBirdFlockState extends State<_AnimatedBirdFlock>
+    with TickerProviderStateMixin {
+  late final AnimationController _pathCtrl;
+  late final AnimationController _wingCtrl;
+
+  // Three birds with different phase offsets and scale
+  static const _birds = [
+    (phase: 0.00, scale: 1.00, yOff: 0.00),
+    (phase: 0.33, scale: 0.75, yOff: -0.06),
+    (phase: 0.66, scale: 0.60, yOff:  0.05),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _pathCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 9),
+    )..repeat();
+    _wingCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pathCtrl.dispose();
+    _wingCtrl.dispose();
+    super.dispose();
+  }
+
+  // Figure-8 / Lissajous path across the top half of the platform
+  Offset _birdPos(double t, double yOff) {
+    final angle = t * 2 * math.pi;
+    final x = widget.platformW * (0.5 + 0.42 * math.cos(angle));
+    final y = widget.platformH *
+        (0.18 + yOff + 0.12 * math.sin(angle * 2));
+    return Offset(x, y);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_pathCtrl, _wingCtrl]),
+      builder: (context, _) {
+        final wingT = _wingCtrl.value; // 0→1
+        return CustomPaint(
+          painter: _BirdFlockPainter(
+            birds: _birds,
+            pathT: _pathCtrl.value,
+            wingT: wingT,
+            platformW: widget.platformW,
+            platformH: widget.platformH,
+            positionOf: _birdPos,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BirdFlockPainter extends CustomPainter {
+  final List<({double phase, double scale, double yOff})> birds;
+  final double pathT;
+  final double wingT;
+  final double platformW;
+  final double platformH;
+  final Offset Function(double t, double yOff) positionOf;
+
+  const _BirdFlockPainter({
+    required this.birds,
+    required this.pathT,
+    required this.wingT,
+    required this.platformW,
+    required this.platformH,
+    required this.positionOf,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final b in birds) {
+      final t = (pathT + b.phase) % 1.0;
+      final pos = positionOf(t, b.yOff);
+      final s = b.scale;
+
+      // Direction: derivative of position → flip horizontally
+      final t2 = (t + 0.01) % 1.0;
+      final pos2 = positionOf(t2, b.yOff);
+      final facingRight = pos2.dx >= pos.dx;
+
+      _drawBird(canvas, pos, s * 22, wingT, facingRight);
+    }
+  }
+
+  void _drawBird(Canvas canvas, Offset center, double r, double wingT,
+      bool facingRight) {
+    final flip = facingRight ? 1.0 : -1.0;
+
+    // Wing angle: flapping up-down
+    final wingAngle = (wingT * 0.6 - 0.3); // -0.3 .. +0.3 rad
+
+    final bodyPaint = Paint()..color = const Color(0xFF29B6F6);
+    final wingPaint = Paint()..color = const Color(0xFF0288D1);
+    final accentPaint = Paint()..color = const Color(0xFFFFA726);
+
+    // Body
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: r * 1.4, height: r * 0.7),
+      bodyPaint,
+    );
+
+    // Wings (rotated around body center)
+    for (final side in [-1.0, 1.0]) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(side * wingAngle);
+      final wPath = Path()
+        ..moveTo(0, 0)
+        ..quadraticBezierTo(
+            flip * side * r * 1.2, -r * 0.5, flip * side * r * 1.8, r * 0.1)
+        ..quadraticBezierTo(
+            flip * side * r * 1.0, r * 0.3, 0, r * 0.2)
+        ..close();
+      canvas.drawPath(wPath, wingPaint);
+      canvas.restore();
+    }
+
+    // Head
+    canvas.drawCircle(
+      Offset(center.dx + flip * r * 0.65, center.dy - r * 0.15),
+      r * 0.38,
+      bodyPaint,
+    );
+
+    // Beak
+    final beakPath = Path()
+      ..moveTo(center.dx + flip * r * 0.95, center.dy - r * 0.15)
+      ..lineTo(center.dx + flip * r * 1.35, center.dy - r * 0.05)
+      ..lineTo(center.dx + flip * r * 0.95, center.dy + r * 0.05)
+      ..close();
+    canvas.drawPath(beakPath, accentPaint);
+
+    // Eye
+    canvas.drawCircle(
+      Offset(center.dx + flip * r * 0.70, center.dy - r * 0.22),
+      r * 0.09,
+      Paint()..color = Colors.black87,
+    );
+
+    // Tail feathers
+    final tailPath = Path()
+      ..moveTo(center.dx - flip * r * 0.65, center.dy)
+      ..lineTo(center.dx - flip * r * 1.20, center.dy - r * 0.25)
+      ..lineTo(center.dx - flip * r * 1.10, center.dy + r * 0.10)
+      ..lineTo(center.dx - flip * r * 1.30, center.dy + r * 0.05)
+      ..lineTo(center.dx - flip * r * 0.65, center.dy + r * 0.20)
+      ..close();
+    canvas.drawPath(tailPath, wingPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _BirdFlockPainter old) => true;
+}
+
+// ─── Animated land animal — strolls back and forth across its slot ────────────
+
+class _AnimatedLandAnimal extends StatefulWidget {
+  final CubeDecoration type;
+  final double slotWidth;
+  final double slotHeight;
+
+  const _AnimatedLandAnimal({
+    required this.type,
+    required this.slotWidth,
+    required this.slotHeight,
+  });
+
+  @override
+  State<_AnimatedLandAnimal> createState() => _AnimatedLandAnimalState();
+}
+
+class _AnimatedLandAnimalState extends State<_AnimatedLandAnimal>
+    with TickerProviderStateMixin {
+  late final AnimationController _walkCtrl;   // stroll left↔right
+  late final AnimationController _legCtrl;    // leg swing cycle
+  late final AnimationController _bobCtrl;    // subtle body bob
+
+  @override
+  void initState() {
+    super.initState();
+
+    final strollDur = widget.type == CubeDecoration.horse
+        ? const Duration(seconds: 4)
+        : const Duration(seconds: 6);
+
+    _walkCtrl = AnimationController(
+      vsync: this,
+      duration: strollDur,
+    )..repeat(reverse: true);
+
+    _legCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    )..repeat(reverse: true);
+
+    _bobCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _walkCtrl.dispose();
+    _legCtrl.dispose();
+    _bobCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_walkCtrl, _legCtrl, _bobCtrl]),
+      builder: (context, _) {
+        return CustomPaint(
+          painter: _LandAnimalPainter(
+            type: widget.type,
+            walkT: _walkCtrl.value,        // 0 = far left, 1 = far right
+            legT: _legCtrl.value,          // 0→1 leg swing
+            bobT: _bobCtrl.value,          // 0→1 body bob
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LandAnimalPainter extends CustomPainter {
+  final CubeDecoration type;
+  final double walkT;
+  final double legT;
+  final double bobT;
+
+  const _LandAnimalPainter({
+    required this.type,
+    required this.walkT,
+    required this.legT,
+    required this.bobT,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    switch (type) {
+      case CubeDecoration.pig:   _drawPig(canvas, size);   break;
+      case CubeDecoration.horse: _drawHorse(canvas, size); break;
+      default: break;
+    }
+  }
+
+  // ── Pig ────────────────────────────────────────────────────────────────────
+
+  void _drawPig(Canvas canvas, Size size) {
+    // Horizontal stroll: 15%…85% of slot width
+    final cx = size.width * (0.15 + walkT * 0.70);
+    final facingRight = walkT > 0.5 ? false : true;
+    final flip = facingRight ? 1.0 : -1.0;
+
+    // Subtle bob
+    final bobOff = size.height * 0.01 * math.sin(bobT * math.pi);
+    final cy = size.height * 0.68 + bobOff;
+
+    // Shadow
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(cx, size.height * 0.94),
+          width: size.width * 0.28,
+          height: size.height * 0.04),
+      Paint()..color = Colors.black26,
+    );
+
+    // Legs (4 legs, alternating swing)
+    final legOffsets = [-0.10, -0.03, 0.03, 0.10];
+    for (int i = 0; i < 4; i++) {
+      final swing = (i % 2 == 0 ? legT : 1 - legT) * 0.08 - 0.04;
+      final lx = cx + flip * legOffsets[i] * size.width;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+              lx - size.width * 0.025,
+              cy + size.height * 0.06 + swing * size.height,
+              size.width * 0.05,
+              size.height * 0.10),
+          const Radius.circular(2),
+        ),
+        Paint()..color = const Color(0xFFEC407A).withOpacity(0.85),
+      );
+    }
+
+    // Body
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(cx, cy),
+          width: size.width * 0.38,
+          height: size.height * 0.18),
+      Paint()..color = const Color(0xFFF48FB1),
+    );
+
+    // Head
+    canvas.drawCircle(
+      Offset(cx + flip * size.width * 0.18, cy - size.height * 0.03),
+      size.width * 0.11,
+      Paint()..color = const Color(0xFFF48FB1),
+    );
+
+    // Ears
+    for (final ey in [-0.10, -0.02]) {
+      canvas.drawOval(
+        Rect.fromCenter(
+            center: Offset(
+                cx + flip * (size.width * 0.14 + ey.abs() * size.width * 0.5),
+                cy - size.height * 0.10),
+            width: size.width * 0.06,
+            height: size.height * 0.06),
+        Paint()..color = const Color(0xFFEC407A),
+      );
+    }
+
+    // Snout
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(
+              cx + flip * size.width * 0.26, cy - size.height * 0.01),
+          width: size.width * 0.08,
+          height: size.height * 0.055),
+      Paint()..color = const Color(0xFFEC407A),
+    );
+    // Nostril
+    canvas.drawCircle(
+      Offset(cx + flip * size.width * 0.255, cy - size.height * 0.008),
+      size.width * 0.012,
+      Paint()..color = const Color(0xFFC2185B),
+    );
+
+    // Eye
+    canvas.drawCircle(
+      Offset(cx + flip * size.width * 0.19, cy - size.height * 0.06),
+      size.width * 0.016,
+      Paint()..color = Colors.black87,
+    );
+
+    // Tail (curly)
+    final tailPath = Path()
+      ..moveTo(cx - flip * size.width * 0.17, cy - size.height * 0.01)
+      ..quadraticBezierTo(
+          cx - flip * size.width * 0.26, cy - size.height * 0.06,
+          cx - flip * size.width * 0.22, cy - size.height * 0.12);
+    canvas.drawPath(
+        tailPath,
+        Paint()
+          ..color = const Color(0xFFEC407A)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round);
+  }
+
+  // ── Horse ──────────────────────────────────────────────────────────────────
+
+  void _drawHorse(Canvas canvas, Size size) {
+    final cx = size.width * (0.15 + walkT * 0.70);
+    final facingRight = walkT <= 0.5;
+    final flip = facingRight ? 1.0 : -1.0;
+
+    final bobOff = size.height * 0.012 * math.sin(bobT * math.pi);
+    final cy = size.height * 0.62 + bobOff;
+
+    // Shadow
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(cx, size.height * 0.95),
+          width: size.width * 0.38,
+          height: size.height * 0.04),
+      Paint()..color = Colors.black26,
+    );
+
+    // Legs (4 legs with gait)
+    final legDxs = [-0.13, -0.04, 0.04, 0.13];
+    for (int i = 0; i < 4; i++) {
+      final swing = (i % 2 == 0 ? legT : 1 - legT) * 0.10 - 0.05;
+      final lx = cx + flip * legDxs[i] * size.width;
+      // Upper leg
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+              lx - size.width * 0.030,
+              cy + size.height * 0.06 + swing * size.height,
+              size.width * 0.060,
+              size.height * 0.14),
+          const Radius.circular(2),
+        ),
+        Paint()..color = const Color(0xFF8D6E63),
+      );
+      // Hoof
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+              lx - size.width * 0.034,
+              cy + size.height * 0.20 + swing * size.height,
+              size.width * 0.068,
+              size.height * 0.04),
+          const Radius.circular(2),
+        ),
+        Paint()..color = Colors.black54,
+      );
+    }
+
+    // Body
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(cx, cy),
+          width: size.width * 0.52,
+          height: size.height * 0.18),
+      Paint()..color = const Color(0xFF8D6E63),
+    );
+
+    // Neck
+    final neck = Path()
+      ..moveTo(cx + flip * size.width * 0.14, cy - size.height * 0.05)
+      ..lineTo(cx + flip * size.width * 0.20, cy - size.height * 0.16)
+      ..lineTo(cx + flip * size.width * 0.28, cy - size.height * 0.16)
+      ..lineTo(cx + flip * size.width * 0.22, cy - size.height * 0.05)
+      ..close();
+    canvas.drawPath(neck, Paint()..color = const Color(0xFF8D6E63));
+
+    // Head
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(
+              cx + flip * size.width * 0.30, cy - size.height * 0.18),
+          width: size.width * 0.16,
+          height: size.height * 0.10),
+      Paint()..color = const Color(0xFF8D6E63),
+    );
+
+    // Snout
+    canvas.drawOval(
+      Rect.fromCenter(
+          center: Offset(
+              cx + flip * size.width * 0.38, cy - size.height * 0.16),
+          width: size.width * 0.08,
+          height: size.height * 0.065),
+      Paint()..color = const Color(0xFFA1887F),
+    );
+
+    // Nostril
+    canvas.drawCircle(
+      Offset(cx + flip * size.width * 0.395, cy - size.height * 0.155),
+      size.width * 0.012,
+      Paint()..color = const Color(0xFF6D4C41),
+    );
+
+    // Eye
+    canvas.drawCircle(
+      Offset(cx + flip * size.width * 0.265, cy - size.height * 0.20),
+      size.width * 0.016,
+      Paint()..color = Colors.black87,
+    );
+
+    // Ear
+    final ear = Path()
+      ..moveTo(cx + flip * size.width * 0.26, cy - size.height * 0.22)
+      ..lineTo(cx + flip * size.width * 0.28, cy - size.height * 0.28)
+      ..lineTo(cx + flip * size.width * 0.31, cy - size.height * 0.22)
+      ..close();
+    canvas.drawPath(ear, Paint()..color = const Color(0xFF8D6E63));
+
+    // Mane (3 puffs along neck)
+    for (int i = 0; i < 3; i++) {
+      final t = i / 2.0;
+      canvas.drawCircle(
+        Offset(
+            cx + flip * size.width * (0.18 + t * 0.10),
+            cy - size.height * (0.12 + t * 0.04)),
+        size.width * 0.04,
+        Paint()..color = const Color(0xFF4E342E),
+      );
+    }
+
+    // Tail
+    final tailPath = Path()
+      ..moveTo(cx - flip * size.width * 0.24, cy - size.height * 0.02)
+      ..quadraticBezierTo(
+          cx - flip * size.width * 0.34, cy + size.height * 0.06,
+          cx - flip * size.width * 0.28, cy + size.height * 0.14);
+    canvas.drawPath(
+        tailPath,
+        Paint()
+          ..color = const Color(0xFF4E342E)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = size.width * 0.045
+          ..strokeCap = StrokeCap.round);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LandAnimalPainter old) =>
+      old.walkT != walkT || old.legT != legT || old.bobT != bobT;
+}
+
 // ─── Decorate bottom sheet ────────────────────────────────────────────────────
 
 class _DecorateSheet extends StatefulWidget {
@@ -459,8 +1014,6 @@ class _DecorateSheet extends StatefulWidget {
 }
 
 class _DecorateSheetState extends State<_DecorateSheet> {
-  // null  = showing category picker
-  // non-null = showing items inside that category
   DecorationCategory? _activeCategory;
   CubeDecoration? _selectedDec;
 
@@ -478,7 +1031,6 @@ class _DecorateSheetState extends State<_DecorateSheet> {
       ),
       child: Column(
         children: [
-          // Handle
           Container(
             margin: const EdgeInsets.symmetric(vertical: 12),
             width: 40,
@@ -489,7 +1041,6 @@ class _DecorateSheetState extends State<_DecorateSheet> {
             ),
           ),
 
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -554,8 +1105,6 @@ class _DecorateSheetState extends State<_DecorateSheet> {
     );
   }
 
-  // ── Step A: category grid ─────────────────────────────────────────────────
-
   Widget _buildCategoryPicker() {
     const categories = DecorationCategory.values;
     return Padding(
@@ -603,7 +1152,8 @@ class _DecorateSheetState extends State<_DecorateSheet> {
                       const SizedBox(height: 10),
                       Text(cat.label,
                           style: TextStyle(
-                              color: hasItems ? Colors.white : Colors.white24,
+                              color:
+                              hasItems ? Colors.white : Colors.white24,
                               fontSize: 13,
                               fontWeight: FontWeight.w600),
                           textAlign: TextAlign.center),
@@ -624,18 +1174,22 @@ class _DecorateSheetState extends State<_DecorateSheet> {
     );
   }
 
-  // ── Step B: item picker + slot grid ──────────────────────────────────────
-
   Widget _buildItemAndSlotPicker() {
     final items = _activeCategory!.items;
+    final catName = _activeCategory!.label.toLowerCase();
+    // Strip trailing 's' for singular: "trees"→"tree", "animals"→"animal"
+    final singular =
+    catName.endsWith('s') ? catName.substring(0, catName.length - 1) : catName;
+
+    // Bird is special — it occupies no slot, just gets placed globally
+    final isBirdCategory = _activeCategory == DecorationCategory.animals;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Step 1: pick a decoration within the category
-          Text('Step 1 — Pick a ${_activeCategory!.label.toLowerCase().replaceAll('s', '')}',
+          Text('Step 1 — Pick a $singular',
               style: const TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -683,97 +1237,138 @@ class _DecorateSheetState extends State<_DecorateSheet> {
             }).toList(),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // Step 2: pick a slot
-          Text('Step 2 — Choose a slot',
-              style: TextStyle(
-                  color: _selectedDec == null
-                      ? Colors.white30
-                      : Colors.white70,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500)),
-          const SizedBox(height: 4),
-          Text(
-            'Row 1 = front of platform  ·  Row ${widget.rows} = back',
-            style: const TextStyle(color: Colors.white30, fontSize: 11),
-          ),
-          const SizedBox(height: 12),
-
-          for (int r = widget.rows - 1; r >= 0; r--) ...[
-            Row(
-              children: [
-                SizedBox(
-                  width: 48,
-                  child: Text(
-                    r == 0 ? 'Front' : 'Row ${r + 1}',
-                    style:
-                    const TextStyle(color: Colors.white38, fontSize: 10),
-                  ),
-                ),
-                ...List.generate(widget.cols, (c) {
-                  final slot = widget.slots
-                      .firstWhere((s) => s.col == c && s.row == r);
-                  final occupied = slot.decoration != CubeDecoration.none;
-                  final canTap = _selectedDec != null;
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: canTap
-                          ? () {
-                        widget.onPlace(c, r, _selectedDec!);
+          // Bird: special one-tap placement (no slot needed)
+          if (_selectedDec == CubeDecoration.bird) ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFF5CE1E6).withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: const Color(0xFF5CE1E6).withOpacity(0.4)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(children: [
+                    Icon(Icons.info_outline,
+                        color: Color(0xFF5CE1E6), size: 16),
+                    SizedBox(width: 6),
+                    Text('Birds soar freely above the platform',
+                        style: TextStyle(
+                            color: Color(0xFF5CE1E6),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500)),
+                  ]),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        // Place bird in slot 0_0 as a marker
+                        widget.onPlace(0, 0, CubeDecoration.bird);
                         Navigator.pop(context);
-                      }
-                          : null,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        margin: const EdgeInsets.fromLTRB(0, 0, 6, 0),
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: occupied
-                              ? const Color(0xFF388E3C).withOpacity(0.2)
-                              : const Color(0xFF1A2B4A).withOpacity(0.4),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: occupied
-                                ? const Color(0xFF66BB6A)
-                                : canTap
-                                ? const Color(0xFF5CE1E6).withOpacity(0.45)
-                                : Colors.white12,
-                            width: occupied ? 1.5 : 1,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              occupied ? slot.decoration.icon : Icons.add,
-                              color: occupied
-                                  ? const Color(0xFF66BB6A)
-                                  : canTap
-                                  ? Colors.white38
-                                  : Colors.white12,
-                              size: 18,
-                            ),
-                            const SizedBox(height: 3),
-                            Text('${c + 1}',
-                                style: TextStyle(
-                                    color: occupied
-                                        ? const Color(0xFF66BB6A)
-                                        : Colors.white24,
-                                    fontSize: 10)),
-                          ],
-                        ),
+                      },
+                      icon: const Icon(Icons.flight, size: 18),
+                      label: const Text('Release birds!'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF5CE1E6),
+                        foregroundColor: const Color(0xFF0A1628),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                     ),
-                  );
-                }),
-              ],
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
+          ] else if (_selectedDec != null) ...[
+            // Land animals: pick a slot
+            Text('Step 2 — Choose a slot',
+                style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500)),
+            const SizedBox(height: 4),
+            Text(
+              'Row 1 = front of platform  ·  Row ${widget.rows} = back',
+              style: const TextStyle(color: Colors.white30, fontSize: 11),
+            ),
+            const SizedBox(height: 12),
+
+            for (int r = widget.rows - 1; r >= 0; r--) ...[
+              Row(
+                children: [
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      r == 0 ? 'Front' : 'Row ${r + 1}',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 10),
+                    ),
+                  ),
+                  ...List.generate(widget.cols, (c) {
+                    final slot = widget.slots
+                        .firstWhere((s) => s.col == c && s.row == r);
+                    final occupied =
+                        slot.decoration != CubeDecoration.none;
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.onPlace(c, r, _selectedDec!);
+                          Navigator.pop(context);
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          margin: const EdgeInsets.fromLTRB(0, 0, 6, 0),
+                          height: 52,
+                          decoration: BoxDecoration(
+                            color: occupied
+                                ? const Color(0xFF388E3C).withOpacity(0.2)
+                                : const Color(0xFF1A2B4A).withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: occupied
+                                  ? const Color(0xFF66BB6A)
+                                  : const Color(0xFF5CE1E6)
+                                  .withOpacity(0.45),
+                              width: occupied ? 1.5 : 1,
+                            ),
+                          ),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                occupied
+                                    ? slot.decoration.icon
+                                    : Icons.add,
+                                color: occupied
+                                    ? const Color(0xFF66BB6A)
+                                    : Colors.white38,
+                                size: 18,
+                              ),
+                              const SizedBox(height: 3),
+                              Text('${c + 1}',
+                                  style: TextStyle(
+                                      color: occupied
+                                          ? const Color(0xFF66BB6A)
+                                          : Colors.white24,
+                                      fontSize: 10)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
           ],
 
           const SizedBox(height: 8),
-
           TextButton.icon(
             onPressed: () {
               for (final s in widget.slots) {
@@ -792,7 +1387,7 @@ class _DecorateSheetState extends State<_DecorateSheet> {
   }
 }
 
-// ─── Platform painter ─────────────────────────────────────────────────────────
+// ─── Platform painter (unchanged) ─────────────────────────────────────────────
 
 class _IsometricPlatformPainter extends CustomPainter {
   final int cols;
@@ -820,49 +1415,35 @@ class _IsometricPlatformPainter extends CustomPainter {
     final p3b = Offset(w * 0.92, h * 0.60);
 
     final topPath = Path()
-      ..moveTo(p1.dx, p1.dy)
-      ..lineTo(p2.dx, p2.dy)
-      ..lineTo(p3.dx, p3.dy)
-      ..lineTo(p4.dx, p4.dy)
-      ..close();
+      ..moveTo(p1.dx, p1.dy) ..lineTo(p2.dx, p2.dy)
+      ..lineTo(p3.dx, p3.dy) ..lineTo(p4.dx, p4.dy) ..close();
 
     final frontPath = Path()
-      ..moveTo(p1.dx,  p1.dy)
-      ..lineTo(p4.dx,  p4.dy)
-      ..lineTo(p4b.dx, p4b.dy)
-      ..lineTo(p1b.dx, p1b.dy)
-      ..close();
+      ..moveTo(p1.dx, p1.dy)  ..lineTo(p4.dx,  p4.dy)
+      ..lineTo(p4b.dx, p4b.dy) ..lineTo(p1b.dx, p1b.dy) ..close();
 
     final rightPath = Path()
-      ..moveTo(p4.dx,  p4.dy)
-      ..lineTo(p3.dx,  p3.dy)
-      ..lineTo(p3b.dx, p3b.dy)
-      ..lineTo(p4b.dx, p4b.dy)
-      ..close();
+      ..moveTo(p4.dx, p4.dy)   ..lineTo(p3.dx,  p3.dy)
+      ..lineTo(p3b.dx, p3b.dy) ..lineTo(p4b.dx, p4b.dy) ..close();
 
-    final topRect = Rect.fromPoints(p2, p4);
     final topPaint = Paint()
       ..shader = const LinearGradient(
         colors: [Color(0xFF66BB6A), Color(0xFF388E3C)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(topRect);
+        begin: Alignment.topLeft, end: Alignment.bottomRight,
+      ).createShader(Rect.fromPoints(p2, p4));
 
-    final frontPaint = Paint()..color = const Color(0xFF8D6E63);
-    final rightPaint = Paint()..color = const Color(0xFF5D4037);
-
-    final edgePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeJoin = StrokeJoin.round;
-
-    canvas.drawPath(frontPath, frontPaint);
-    canvas.drawPath(rightPath, rightPaint);
+    canvas.drawPath(frontPath, Paint()..color = const Color(0xFF8D6E63));
+    canvas.drawPath(rightPath, Paint()..color = const Color(0xFF5D4037));
     canvas.drawPath(topPath,   topPaint);
 
     _drawGrassStrokes(canvas, p1, p2, p3, p4, w, h);
     _drawDirtStrokes(canvas, p1, p4, p4b, p1b, isRight: false);
     _drawDirtStrokes(canvas, p4, p3, p3b, p4b, isRight: true);
+
+    final edgePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2
+      ..strokeJoin = StrokeJoin.round;
 
     edgePaint.color = const Color(0xFF1B5E20);
     canvas.drawPath(topPath, edgePaint);
@@ -871,10 +1452,9 @@ class _IsometricPlatformPainter extends CustomPainter {
     canvas.drawPath(rightPath, edgePaint);
     canvas.drawLine(p4, p4b, edgePaint);
 
-    final slotCenters = <String, Offset>{};
     final colVec = p4 - p1;
     final rowVec = p2 - p1;
-
+    final slotCenters = <String, Offset>{};
     for (int r = 0; r < rows; r++) {
       for (int c = 0; c < cols; c++) {
         final tc = (c + 0.5) / cols;
@@ -882,47 +1462,31 @@ class _IsometricPlatformPainter extends CustomPainter {
         slotCenters['${c}_$r'] = p1 + colVec * tc + rowVec * tr;
       }
     }
-
     onSlotCenters?.call(slotCenters);
   }
 
-  void _drawGrassStrokes(
-      Canvas canvas,
-      Offset p1, Offset p2, Offset p3, Offset p4,
-      double w, double h,
-      ) {
+  void _drawGrassStrokes(Canvas canvas, Offset p1, Offset p2, Offset p3,
+      Offset p4, double w, double h) {
     final paint = Paint()
       ..color = const Color(0xFF2E7D32)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.8
       ..strokeCap = StrokeCap.round;
-
-    const int rowCount = 5;
-    const int colCount = 8;
-
-    for (int row = 1; row < rowCount; row++) {
-      final t = row / rowCount;
+    for (int row = 1; row < 5; row++) {
+      final t = row / 5;
       final leftEdge  = Offset.lerp(p1, p2, t)!;
       final rightEdge = Offset.lerp(p4, p3, t)!;
-
       final path = Path();
       bool first = true;
-
-      for (int col = 0; col <= colCount; col++) {
-        final s = col / colCount;
+      for (int col = 0; col <= 8; col++) {
+        final s = col / 8;
         final base = Offset.lerp(leftEdge, rightEdge, s)!;
-
         final up = Offset(
           (p2 - p1).dx / (p2 - p1).distance,
           (p2 - p1).dy / (p2 - p1).distance,
         ) * (h * 0.045);
-
         final tip = base - up * (col.isEven ? 1.0 : 0.4);
-
-        if (first) {
-          path.moveTo(base.dx, base.dy);
-          first = false;
-        }
+        if (first) { path.moveTo(base.dx, base.dy); first = false; }
         path.lineTo(tip.dx, tip.dy);
         path.lineTo(base.dx, base.dy);
       }
@@ -930,37 +1494,25 @@ class _IsometricPlatformPainter extends CustomPainter {
     }
   }
 
-  void _drawDirtStrokes(
-      Canvas canvas,
-      Offset tl, Offset tr, Offset br, Offset bl, {
-        required bool isRight,
-      }) {
+  void _drawDirtStrokes(Canvas canvas, Offset tl, Offset tr, Offset br,
+      Offset bl, {required bool isRight}) {
     final paint = Paint()
-      ..color = (isRight
-          ? const Color(0xFF4E342E)
-          : const Color(0xFF6D4C41))
+      ..color = isRight ? const Color(0xFF4E342E) : const Color(0xFF6D4C41)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.4
       ..strokeCap = StrokeCap.round;
-
-    const int lines = 5;
-
-    for (int i = 1; i < lines; i++) {
-      final t = i / lines;
+    for (int i = 1; i < 5; i++) {
+      final t = i / 5;
       final left  = Offset.lerp(tl, bl, t)!;
       final right = Offset.lerp(tr, br, t)!;
-
       final path = Path();
-      const int segments = 10;
       path.moveTo(left.dx, left.dy);
-
-      for (int s = 1; s <= segments; s++) {
-        final u    = s / segments;
-        final mid  = Offset.lerp(left, right, u)!;
+      for (int s = 1; s <= 10; s++) {
+        final u   = s / 10;
+        final mid = Offset.lerp(left, right, u)!;
         final wave = math.sin(u * math.pi * 4) * 2.5;
         path.lineTo(mid.dx, mid.dy + wave);
       }
-
       canvas.drawPath(path, paint);
     }
   }
@@ -970,7 +1522,7 @@ class _IsometricPlatformPainter extends CustomPainter {
       old.cols != cols || old.rows != rows;
 }
 
-// ─── Decoration painter ───────────────────────────────────────────────────────
+// ─── Static tree painter (trees only) ────────────────────────────────────────
 
 class _DecorationPainter extends CustomPainter {
   final CubeDecoration type;
@@ -982,7 +1534,7 @@ class _DecorationPainter extends CustomPainter {
       case CubeDecoration.oakTree:  _drawOakTree(canvas, size);  break;
       case CubeDecoration.palmTree: _drawPalmTree(canvas, size); break;
       case CubeDecoration.pineTree: _drawPineTree(canvas, size); break;
-      case CubeDecoration.none:     break;
+      default: break;
     }
   }
 
@@ -991,7 +1543,6 @@ class _DecorationPainter extends CustomPainter {
     final trunkW = size.width * 0.16;
     final trunkH = size.height * 0.35;
     final trunkTop = size.height - trunkH;
-
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(cx - trunkW / 2, trunkTop, trunkW, trunkH),
@@ -999,68 +1550,42 @@ class _DecorationPainter extends CustomPainter {
       ),
       Paint()..color = const Color(0xFF6D4C41),
     );
-
-    canvas.drawCircle(
-      Offset(cx + size.width * 0.06, trunkTop - size.width * 0.18),
-      size.width * 0.44,
-      Paint()..color = const Color(0xFF1B5E20),
-    );
-    canvas.drawCircle(
-      Offset(cx, trunkTop - size.width * 0.22),
-      size.width * 0.44,
-      Paint()..color = const Color(0xFF2E7D32),
-    );
-    canvas.drawCircle(
-      Offset(cx - size.width * 0.08, trunkTop - size.width * 0.32),
-      size.width * 0.28,
-      Paint()..color = const Color(0xFF388E3C),
-    );
-    canvas.drawCircle(
-      Offset(cx + size.width * 0.14, trunkTop - size.width * 0.26),
-      size.width * 0.22,
-      Paint()..color = const Color(0xFF43A047),
-    );
+    canvas.drawCircle(Offset(cx + size.width * 0.06, trunkTop - size.width * 0.18),
+        size.width * 0.44, Paint()..color = const Color(0xFF1B5E20));
+    canvas.drawCircle(Offset(cx, trunkTop - size.width * 0.22),
+        size.width * 0.44, Paint()..color = const Color(0xFF2E7D32));
+    canvas.drawCircle(Offset(cx - size.width * 0.08, trunkTop - size.width * 0.32),
+        size.width * 0.28, Paint()..color = const Color(0xFF388E3C));
+    canvas.drawCircle(Offset(cx + size.width * 0.14, trunkTop - size.width * 0.26),
+        size.width * 0.22, Paint()..color = const Color(0xFF43A047));
   }
 
   void _drawPalmTree(Canvas canvas, Size size) {
     final cx = size.width / 2;
-
     final trunkPath = Path()
       ..moveTo(cx, size.height)
-      ..quadraticBezierTo(
-        cx + size.width * 0.18, size.height * 0.55,
-        cx - size.width * 0.08, size.height * 0.22,
-      );
-
+      ..quadraticBezierTo(cx + size.width * 0.18, size.height * 0.55,
+          cx - size.width * 0.08, size.height * 0.22);
     canvas.drawPath(trunkPath, Paint()
       ..color = const Color(0xFF8D6E63)
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.14
       ..strokeCap = StrokeCap.round);
-
     canvas.drawPath(trunkPath, Paint()
       ..color = const Color(0xFFBCAAA4)
       ..style = PaintingStyle.stroke
       ..strokeWidth = size.width * 0.04
       ..strokeCap = StrokeCap.round);
-
     final tipX = cx - size.width * 0.08;
     final tipY = size.height * 0.22;
-
     for (final angle in [-80.0, -45.0, -10.0, 25.0, 60.0, 95.0, 130.0]) {
       final rad = angle * math.pi / 180;
       final len = size.width * 0.55;
       final ex = tipX + len * math.cos(rad);
       final ey = tipY + len * math.sin(rad);
-      final ctrlX = tipX + len * 0.5 * math.cos(rad) +
-          math.sin(rad) * size.width * 0.08;
-      final ctrlY = tipY + len * 0.5 * math.sin(rad) -
-          math.cos(rad).abs() * size.width * 0.12;
-
-      final frond = Path()
-        ..moveTo(tipX, tipY)
-        ..quadraticBezierTo(ctrlX, ctrlY, ex, ey);
-
+      final ctrlX = tipX + len * 0.5 * math.cos(rad) + math.sin(rad) * size.width * 0.08;
+      final ctrlY = tipY + len * 0.5 * math.sin(rad) - math.cos(rad).abs() * size.width * 0.12;
+      final frond = Path()..moveTo(tipX, tipY)..quadraticBezierTo(ctrlX, ctrlY, ex, ey);
       canvas.drawPath(frond, Paint()
         ..color = const Color(0xFF33691E)
         ..style = PaintingStyle.stroke
@@ -1072,20 +1597,14 @@ class _DecorationPainter extends CustomPainter {
         ..strokeWidth = size.width * 0.035
         ..strokeCap = StrokeCap.round);
     }
-
-    canvas.drawCircle(
-        Offset(tipX + size.width * 0.08, tipY + size.height * 0.05),
-        size.width * 0.07,
-        Paint()..color = const Color(0xFF795548));
-    canvas.drawCircle(
-        Offset(tipX - size.width * 0.06, tipY + size.height * 0.07),
-        size.width * 0.06,
-        Paint()..color = const Color(0xFF6D4C41));
+    canvas.drawCircle(Offset(tipX + size.width * 0.08, tipY + size.height * 0.05),
+        size.width * 0.07, Paint()..color = const Color(0xFF795548));
+    canvas.drawCircle(Offset(tipX - size.width * 0.06, tipY + size.height * 0.07),
+        size.width * 0.06, Paint()..color = const Color(0xFF6D4C41));
   }
 
   void _drawPineTree(Canvas canvas, Size size) {
     final cx = size.width / 2;
-
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(cx - size.width * 0.09, size.height * 0.72,
@@ -1094,7 +1613,6 @@ class _DecorationPainter extends CustomPainter {
       ),
       Paint()..color = const Color(0xFF5D4037),
     );
-
     for (final layer in [
       (yB: size.height * 0.80, hW: size.width * 0.50, c: const Color(0xFF1B5E20)),
       (yB: size.height * 0.62, hW: size.width * 0.38, c: const Color(0xFF2E7D32)),
