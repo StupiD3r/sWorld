@@ -302,34 +302,15 @@ class _DashboardPageState extends State<DashboardPage>
                     animation: _pulseAnimation,
                     builder: (_, __) => Transform.scale(
                       scale: _pulseAnimation.value,
-                      child: Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF5CE1E6), Color(0xFF3FA9C4)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(30),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF5CE1E6).withOpacity(0.3),
-                              blurRadius: 20,
-                              spreadRadius: 5,
-                            ),
-                          ],
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(15),
-                          child: Image.asset('assets/images/sWorld_Logo.png'),
-                        ),
+                      child: Image.asset(
+                        'assets/images/sWorld_Logo.png',
+                        width: 360,
+                        height: 360,
                       ),
                     ),
                   ),
                 ),
               ),
-
               // ── Platform ──────────────────────────────────────────────────
               Expanded(
                 flex: 3,
