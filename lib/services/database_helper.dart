@@ -77,4 +77,9 @@ class DatabaseHelper {
       whereArgs: [emailOrUsername, emailOrUsername, password],
     );
   }
+
+  Future<List<Map<String, dynamic>>> getAllUsers() async {
+    final db = await database;
+    return await db.query('users', orderBy: 'created_at DESC');
+  }
 }
